@@ -8,7 +8,6 @@ import polars as pl
 from string import Template
 from pathlib import Path
 from typing import Optional
-from matplotlib import colors as mcolors
 
 
 def sparkline_point_js(
@@ -24,7 +23,7 @@ def sparkline_point_js(
     text: Optional[str | list[str]] = None,
     height: float = 30,
     width: float = 150,
-    color: str | list[str] = "gold",
+    color: str | list[str] = "#FFD700",
     color_errorbar: Optional[str | list[str]] = None,
     color_vline: str = "#00000050",
     legend: bool = False,
@@ -138,11 +137,31 @@ def sparkline_point_js(
     # Convert colors to RGBA format
     def to_rgba(color_name: str) -> str:
         """Convert color name to rgba string."""
-        try:
-            rgba = mcolors.to_rgba(color_name)
-            return f'"rgba({int(rgba[0]*255)}, {int(rgba[1]*255)}, {int(rgba[2]*255)}, {rgba[3]})"'
-        except:
-            return f'"{color_name}"'
+        # Remove whitespace
+        color_str = color_name.strip()
+        
+        # Check if it's a hex color
+        if color_str.startswith('#'):
+            try:
+                # Remove the '#' and handle 3 or 6 digit hex
+                hex_str = color_str[1:]
+                if len(hex_str) == 3:
+                    hex_str = ''.join([c*2 for c in hex_str])
+                if len(hex_str) == 6:
+                    r = int(hex_str[0:2], 16)
+                    g = int(hex_str[2:4], 16)
+                    b = int(hex_str[4:6], 16)
+                    return f'"rgba({r}, {g}, {b}, 1)"'
+            except ValueError:
+                pass
+        
+        # Check if it's an rgb/rgba color
+        if color_str.lower().startswith('rgb'):
+            # Already in the right format, just ensure quotes
+            return f'"{color_str}"'
+        
+        # For any other format, return as-is (let the browser handle it)
+        return f'"{color_name}"'
     
     # Prepare JavaScript variables
     if type == "cell":
