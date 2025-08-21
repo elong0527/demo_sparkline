@@ -22,4 +22,4 @@ format:
 execute:
   freeze: auto
   
-jupyter: forestly
+jupyter: python3
