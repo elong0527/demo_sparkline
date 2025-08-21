@@ -59,10 +59,10 @@ efficacy_data.head()
 forest = ForestPlot(
     data=efficacy_data,
     panels=[
-        # Subgroup labels with hierarchical grouping
+        # Subgroup labels
         TextPanel(
             variables="subgroup",
-            group_by="category",
+            # group_by="category",  # Temporarily disable grouping
             title="Subgroup",
             width=200
         ),
@@ -107,10 +107,10 @@ forest = ForestPlot(
         source="Study ABC-001, ITT Population, Data cutoff: 2024-01-01",
         colors=["#FF6B35"],
         sparkline_height=35,
-        formatters={
-            "p_value": lambda x: f"{x:.3f}" if x >= 0.001 else "<0.001",
-            "hazard_ratio": lambda x: f"{x:.2f}",
-        }
+        # formatters={
+        #     "p_value": lambda x: f"{x:.3f}" if x >= 0.001 else "<0.001",
+        #     "hazard_ratio": lambda x: f"{x:.2f}",
+        # }
     )
 )
 

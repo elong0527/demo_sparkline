@@ -40,6 +40,7 @@ dist/
 # Documentation
 docs/_site/
 docs/.quarto/
+docs/_freeze/
 
 # OS
 .DS_Store

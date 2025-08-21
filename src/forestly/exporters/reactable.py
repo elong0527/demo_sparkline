@@ -1,8 +1,7 @@
 """Reactable exporter for forest plot system."""
 
 import polars as pl
-from htmltools import HTML
-from reactable import Column, Reactable
+from reactable import Column, Reactable, JS
 
 from forestly.core.forest_plot import ForestPlot
 from forestly.panels.sparkline import SparklinePanel
@@ -107,7 +106,10 @@ class ReactableExporter:
                 # Apply formatter if specified
                 if config.formatters and var in config.formatters:
                     formatter = config.formatters[var]
-                    col_args["cell"] = lambda value: formatter(value)
+                    # Create a closure to capture the formatter correctly
+                    def make_cell_formatter(fmt):
+                        return lambda cell_info: fmt(cell_info.value)
+                    col_args["cell"] = make_cell_formatter(formatter)
 
                 columns.append(Column(**col_args))
 
@@ -139,7 +141,7 @@ class ReactableExporter:
                 col_args = {
                     "id": var,
                     "name": panel.title if panel.title else var,
-                    "cell": HTML(js_func),
+                    "cell": JS(js_func),  # Use JS wrapper for JavaScript code
                 }
 
                 if panel.width:
@@ -164,102 +166,126 @@ class ReactableExporter:
             JavaScript function as string
         """
         # Get lower and upper bounds
-        lower = None
-        upper = None
-        if panel.lower:
-            lower = panel.lower[index] if isinstance(panel.lower, list) else panel.lower
-        if panel.upper:
-            upper = panel.upper[index] if isinstance(panel.upper, list) else panel.upper
+        lower_col = panel.lower[index] if isinstance(panel.lower, list) else panel.lower if panel.lower else None
+        upper_col = panel.upper[index] if isinstance(panel.upper, list) else panel.upper if panel.upper else None
 
         # Determine x-axis limits
-        xlim = panel.xlim if panel.xlim else "null"
+        if panel.xlim:
+            xlim_str = f"[{panel.xlim[0]}, {panel.xlim[1]}]"
+        else:
+            xlim_str = "[0, 2]"  # Default range
 
         # Reference line
         ref_line = "null"
         if panel.reference_line is not None:
             if isinstance(panel.reference_line, str):
-                ref_line = f"cellInfo.row['{panel.reference_line}']"
+                ref_line = f"cell.row['{panel.reference_line}']"
             else:
                 ref_line = str(panel.reference_line)
 
         # Color
-        color = "'#4A90E2'"
-        if config.colors and len(config.colors) > index:
-            color = f"'{config.colors[index]}'"
+        color = config.colors[index] if config.colors and len(config.colors) > index else "#4A90E2"
+        
+        # Generate JavaScript function
+        js_code = f"""function(cell, state) {{
+  // Check if value exists
+  const value = cell.row['{variable}'];
+  if (value == null || value === undefined) return null;
+  
+  // Get error bar values if they exist
+  {f"const lower = cell.row['{lower_col}'];" if lower_col else "const lower = null;"}
+  {f"const upper = cell.row['{upper_col}'];" if upper_col else "const upper = null;"}
+  
+  // Create the trace
+  const trace = {{
+    x: [value],
+    y: [0],
+    type: 'scatter',
+    mode: 'markers',
+    marker: {{
+      size: 8,
+      color: '{color}'
+    }},
+    name: '',
+    hoverinfo: 'x'
+  }};
+  
+  // Add error bars if bounds exist
+  if (lower != null && upper != null) {{
+    trace.error_x = {{
+      type: 'data',
+      symmetric: false,
+      array: [upper - value],
+      arrayminus: [value - lower],
+      visible: true,
+      color: '{color}',
+      thickness: 1.5,
+      width: 3
+    }};
+  }}
+  
+  // Layout configuration
+  const layout = {{
+    height: {config.sparkline_height},
+    width: {panel.width if panel.width else 200},
+    margin: {{l: 5, r: 5, t: 5, b: 5}},
+    xaxis: {{
+      range: {xlim_str},
+      zeroline: false,
+      showticklabels: false,
+      showgrid: false,
+      fixedrange: true
+    }},
+    yaxis: {{
+      visible: false,
+      range: [-0.5, 0.5],
+      fixedrange: true
+    }},
+    showlegend: false,
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: 'rgba(0,0,0,0)',
+    shapes: []
+  }};
+  
+  // Add reference line if specified
+  const refLine = {ref_line};
+  if (refLine != null && refLine !== undefined) {{
+    layout.shapes.push({{
+      type: 'line',
+      x0: refLine,
+      x1: refLine,
+      y0: -0.5,
+      y1: 0.5,
+      line: {{
+        color: '{panel.reference_line_color if panel.reference_line_color else config.reference_line_color}',
+        width: 1,
+        dash: 'dash'
+      }}
+    }});
+  }}
+  
+  // Create Plotly component
+  const PlotComponent = window.createPlotlyComponent ? window.createPlotlyComponent(window.Plotly) : 
+    class extends React.Component {{
+      componentDidMount() {{
+        window.Plotly.newPlot(this.el, this.props.data, this.props.layout, this.props.config);
+      }}
+      componentWillUnmount() {{
+        window.Plotly.purge(this.el);
+      }}
+      render() {{
+        return React.createElement('div', {{ref: (el) => this.el = el}});
+      }}
+    }};
+  
+  return React.createElement(PlotComponent, {{
+    data: [trace],
+    layout: layout,
+    config: {{displayModeBar: false, responsive: true}}
+  }});
+}}"""
 
-        js_template = f"""
-        function(cellInfo) {{
-            const value = cellInfo.value;
-            {'const lower = cellInfo.row["' + lower + '"];' if lower else 'const lower = null;'}
-            {'const upper = cellInfo.row["' + upper + '"];' if upper else 'const upper = null;'}
-            
-            if (value == null) return null;
-            
-            const trace = {{
-                x: [value],
-                y: [0],
-                type: 'scatter',
-                mode: 'markers',
-                marker: {{size: 8, color: {color}}},
-                name: ''
-            }};
-            
-            if (lower != null && upper != null) {{
-                trace.error_x = {{
-                    type: 'data',
-                    symmetric: false,
-                    array: [upper - value],
-                    arrayminus: [value - lower],
-                    visible: true,
-                    color: {color}
-                }};
-            }}
-            
-            const layout = {{
-                height: {config.sparkline_height},
-                width: {panel.width if panel.width else 200},
-                margin: {{l: 5, r: 5, t: 5, b: 5}},
-                xaxis: {{
-                    {'range: [' + str(xlim[0]) + ', ' + str(xlim[1]) + '],' if xlim != 'null' else ''}
-                    zeroline: false,
-                    showticklabels: false,
-                    showgrid: false
-                }},
-                yaxis: {{
-                    visible: false,
-                    range: [-0.5, 0.5]
-                }},
-                showlegend: false,
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                shapes: []
-            }};
-            
-            const refLine = {ref_line};
-            if (refLine != null) {{
-                layout.shapes.push({{
-                    type: 'line',
-                    x0: refLine,
-                    x1: refLine,
-                    y0: -0.5,
-                    y1: 0.5,
-                    line: {{
-                        color: '{panel.reference_line_color if panel.reference_line_color else config.reference_line_color}',
-                        width: 1,
-                        dash: 'dash'
-                    }}
-                }});
-            }}
-            
-            return React.createElement(Plotly.Plot, {{
-                data: [trace],
-                layout: layout,
-                config: {{displayModeBar: false}}
-            }});
-        }}
-        """
-
-        return js_template
+        return js_code
 
     def _get_grouping_columns(self, panels: list) -> list[str]:
         """Get grouping columns from panels.
