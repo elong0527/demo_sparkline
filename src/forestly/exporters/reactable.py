@@ -1,0 +1,279 @@
+"""Reactable exporter for forest plot system."""
+
+import polars as pl
+from htmltools import HTML
+from reactable import Column, Reactable
+
+from forestly.core.forest_plot import ForestPlot
+from forestly.panels.sparkline import SparklinePanel
+from forestly.panels.text import TextPanel
+
+
+class ReactableExporter:
+    """Export ForestPlot to interactive Reactable table."""
+
+    def export(self, forest_plot: ForestPlot) -> Reactable:
+        """Export to Reactable with panels.
+
+        Args:
+            forest_plot: ForestPlot instance
+
+        Returns:
+            Reactable object
+        """
+        # Convert polars to pandas for reactable
+        data = forest_plot.data.to_pandas()
+
+        # Create columns from panels
+        columns = self._create_columns(forest_plot.panels, forest_plot.config)
+
+        # Find grouping columns
+        group_by = self._get_grouping_columns(forest_plot.panels)
+
+        # Create Reactable
+        reactable_args = {
+            "data": data,
+            "columns": columns,
+            "striped": True,
+            "highlight": True,
+            "searchable": False,
+            "default_page_size": 20,
+        }
+
+        # Add grouping if specified
+        if group_by:
+            reactable_args["group_by"] = group_by[0] if len(group_by) == 1 else group_by
+
+        # Add title if specified
+        if forest_plot.config.title:
+            reactable_args["element_id"] = "forest-plot-table"
+
+        return Reactable(**reactable_args)
+
+    def _create_columns(self, panels: list, config) -> list[Column]:
+        """Create Reactable columns from panels.
+
+        Args:
+            panels: List of Panel objects
+            config: Config object
+
+        Returns:
+            List of Column objects
+        """
+        columns = []
+
+        for panel in panels:
+            if isinstance(panel, TextPanel):
+                columns.extend(self._create_text_columns(panel, config))
+            elif isinstance(panel, SparklinePanel):
+                columns.extend(self._create_sparkline_columns(panel, config))
+
+        return columns
+
+    def _create_text_columns(self, panel: TextPanel, config) -> list[Column]:
+        """Create columns for TextPanel.
+
+        Args:
+            panel: TextPanel instance
+            config: Config object
+
+        Returns:
+            List of Column objects
+        """
+        columns = []
+
+        if panel.variables:
+            variables = (
+                [panel.variables]
+                if isinstance(panel.variables, str)
+                else panel.variables
+            )
+            labels = (
+                [panel.labels] if isinstance(panel.labels, str) else panel.labels
+            ) if panel.labels else variables
+            widths = (
+                [panel.width] if isinstance(panel.width, int) else panel.width
+            ) if panel.width else [None] * len(variables)
+
+            for var, label, width in zip(variables, labels, widths):
+                col_args = {
+                    "id": var,
+                    "name": label if label else var,
+                }
+
+                if width:
+                    col_args["width"] = width
+
+                # Apply formatter if specified
+                if config.formatters and var in config.formatters:
+                    formatter = config.formatters[var]
+                    col_args["cell"] = lambda value: formatter(value)
+
+                columns.append(Column(**col_args))
+
+        return columns
+
+    def _create_sparkline_columns(self, panel: SparklinePanel, config) -> list[Column]:
+        """Create columns for SparklinePanel.
+
+        Args:
+            panel: SparklinePanel instance
+            config: Config object
+
+        Returns:
+            List of Column objects
+        """
+        columns = []
+
+        if panel.variables:
+            variables = (
+                [panel.variables]
+                if isinstance(panel.variables, str)
+                else panel.variables
+            )
+
+            for i, var in enumerate(variables):
+                # Generate JavaScript function for sparkline
+                js_func = self._generate_sparkline_js(panel, var, i, config)
+
+                col_args = {
+                    "id": var,
+                    "name": panel.title if panel.title else var,
+                    "cell": HTML(js_func),
+                }
+
+                if panel.width:
+                    col_args["width"] = panel.width
+
+                columns.append(Column(**col_args))
+
+        return columns
+
+    def _generate_sparkline_js(
+        self, panel: SparklinePanel, variable: str, index: int, config
+    ) -> str:
+        """Generate JavaScript function for sparkline rendering.
+
+        Args:
+            panel: SparklinePanel instance
+            variable: Variable name for this sparkline
+            index: Index of variable in panel
+            config: Config object
+
+        Returns:
+            JavaScript function as string
+        """
+        # Get lower and upper bounds
+        lower = None
+        upper = None
+        if panel.lower:
+            lower = panel.lower[index] if isinstance(panel.lower, list) else panel.lower
+        if panel.upper:
+            upper = panel.upper[index] if isinstance(panel.upper, list) else panel.upper
+
+        # Determine x-axis limits
+        xlim = panel.xlim if panel.xlim else "null"
+
+        # Reference line
+        ref_line = "null"
+        if panel.reference_line is not None:
+            if isinstance(panel.reference_line, str):
+                ref_line = f"cellInfo.row['{panel.reference_line}']"
+            else:
+                ref_line = str(panel.reference_line)
+
+        # Color
+        color = "'#4A90E2'"
+        if config.colors and len(config.colors) > index:
+            color = f"'{config.colors[index]}'"
+
+        js_template = f"""
+        function(cellInfo) {{
+            const value = cellInfo.value;
+            {'const lower = cellInfo.row["' + lower + '"];' if lower else 'const lower = null;'}
+            {'const upper = cellInfo.row["' + upper + '"];' if upper else 'const upper = null;'}
+            
+            if (value == null) return null;
+            
+            const trace = {{
+                x: [value],
+                y: [0],
+                type: 'scatter',
+                mode: 'markers',
+                marker: {{size: 8, color: {color}}},
+                name: ''
+            }};
+            
+            if (lower != null && upper != null) {{
+                trace.error_x = {{
+                    type: 'data',
+                    symmetric: false,
+                    array: [upper - value],
+                    arrayminus: [value - lower],
+                    visible: true,
+                    color: {color}
+                }};
+            }}
+            
+            const layout = {{
+                height: {config.sparkline_height},
+                width: {panel.width if panel.width else 200},
+                margin: {{l: 5, r: 5, t: 5, b: 5}},
+                xaxis: {{
+                    {'range: [' + str(xlim[0]) + ', ' + str(xlim[1]) + '],' if xlim != 'null' else ''}
+                    zeroline: false,
+                    showticklabels: false,
+                    showgrid: false
+                }},
+                yaxis: {{
+                    visible: false,
+                    range: [-0.5, 0.5]
+                }},
+                showlegend: false,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                shapes: []
+            }};
+            
+            const refLine = {ref_line};
+            if (refLine != null) {{
+                layout.shapes.push({{
+                    type: 'line',
+                    x0: refLine,
+                    x1: refLine,
+                    y0: -0.5,
+                    y1: 0.5,
+                    line: {{
+                        color: '{panel.reference_line_color if panel.reference_line_color else config.reference_line_color}',
+                        width: 1,
+                        dash: 'dash'
+                    }}
+                }});
+            }}
+            
+            return React.createElement(Plotly.Plot, {{
+                data: [trace],
+                layout: layout,
+                config: {{displayModeBar: false}}
+            }});
+        }}
+        """
+
+        return js_template
+
+    def _get_grouping_columns(self, panels: list) -> list[str]:
+        """Get grouping columns from panels.
+
+        Args:
+            panels: List of Panel objects
+
+        Returns:
+            List of grouping column names
+        """
+        for panel in panels:
+            if isinstance(panel, TextPanel) and panel.group_by:
+                if isinstance(panel.group_by, str):
+                    return [panel.group_by]
+                else:
+                    return panel.group_by
+        return []

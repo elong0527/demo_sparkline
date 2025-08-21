@@ -1,0 +1,25 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "Forestly Documentation"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: example_basic_forest.qmd
+        text: Basic Forest Plot
+      - href: example_safety_forest.qmd
+        text: Safety Forest Plot
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+
+execute:
+  freeze: auto
+  
+jupyter: forestly

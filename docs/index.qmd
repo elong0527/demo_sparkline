@@ -1,0 +1,203 @@
+---
+title: "Forestly Documentation"
+subtitle: "Forest Plot System for Clinical Trials"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+## Overview
+
+Forestly is a production-ready forest plot system designed for clinical trials, featuring:
+
+- 📊 **Interactive Visualizations**: Reactable tables with embedded sparklines
+- 🏗️ **Panel-Based Architecture**: Flexible layout system for customization
+- 📈 **Multiple Export Formats**: RTF, static plots, and data frames
+- ✅ **Data Validation**: Pydantic models ensure data integrity
+- 🔍 **Hierarchical Support**: Nested groupings with drill-down capabilities
+
+## Quick Start
+
+### Installation
+
+```bash
+pip install forestly
+```
+
+### Basic Usage
+
+```python
+from forestly import ForestPlot, TextPanel, SparklinePanel, Config
+import polars as pl
+
+# Create forest plot
+forest = ForestPlot(
+    data=efficacy_data,
+    panels=[
+        TextPanel(variables="subgroup"),
+        SparklinePanel(
+            variables="hazard_ratio",
+            lower="hr_ci_lower",
+            upper="hr_ci_upper",
+            reference_line=1.0
+        ),
+        TextPanel(variables="p_value", title="P-value")
+    ]
+)
+
+# Generate interactive table
+forest.to_reactable()
+```
+
+## Examples
+
+### Clinical Trial Applications
+
+1. [**Basic Forest Plot**](example_basic_forest.qmd)
+   - Efficacy subgroup analysis
+   - Hierarchical grouping
+   - Custom formatting
+
+2. [**Safety Forest Plot**](example_safety_forest.qmd)
+   - Multiple treatment arms
+   - Risk differences
+   - SOC/PT hierarchy
+
+## Core Components
+
+### Panel System
+
+The panel system provides flexible layout control:
+
+#### TextPanel
+Display text and numeric columns with optional grouping:
+
+```python
+TextPanel(
+    variables=["treatment_events", "treatment_total"],
+    group_by="category",
+    title="Treatment Arm",
+    labels=["n", "N"],
+    width=100
+)
+```
+
+#### SparklinePanel
+Create forest plots with confidence intervals:
+
+```python
+SparklinePanel(
+    variables="hazard_ratio",
+    lower="hr_ci_lower",
+    upper="hr_ci_upper",
+    reference_line=1.0,
+    xlim=(0.5, 2.0),
+    width=300
+)
+```
+
+### Configuration
+
+Customize appearance and behavior:
+
+```python
+Config(
+    title="Overall Survival Analysis",
+    footnote="Cox proportional hazards model",
+    colors=["#FF6B35", "#4A90E2"],
+    sparkline_height=35,
+    formatters={
+        "p_value": lambda x: f"{x:.3f}" if x >= 0.001 else "<0.001"
+    }
+)
+```
+
+## Data Structure
+
+Forestly uses Polars DataFrames with a consistent structure:
+
+```python
+pl.DataFrame({
+    # Grouping variables
+    "subgroup": [...],
+    "category": [...],
+    
+    # Effect estimates
+    "hazard_ratio": [...],
+    "hr_ci_lower": [...],
+    "hr_ci_upper": [...],
+    
+    # Sample sizes
+    "treatment_events": [...],
+    "control_events": [...],
+    
+    # Statistics
+    "p_value": [...]
+})
+```
+
+## Export Options
+
+### Interactive Output
+```python
+forest.to_reactable()  # Interactive table with sparklines
+```
+
+### Static Outputs
+```python
+forest.to_rtf("forest_plot.rtf")  # Regulatory submission
+forest.to_plotnine()  # Static visualization
+forest.to_dataframe()  # Processed data
+```
+
+## Rendering Documents
+
+To render Quarto documents with forest plots:
+
+```bash
+# Use the provided script for proper library injection
+./render_forest_plot.sh example_basic_forest.qmd
+
+# Or standard Quarto render
+quarto render example_basic_forest.qmd
+```
+
+## Best Practices
+
+1. **Data Validation**: Always validate confidence intervals contain point estimates
+2. **Hierarchical Groups**: Use consistent parent-child relationships
+3. **Reference Lines**: Set appropriate reference values (1.0 for ratios, 0 for differences)
+4. **Color Schemes**: Use distinct colors for multiple treatment groups
+5. **Export Formats**: Choose RTF for regulatory submissions
+
+## Development
+
+### Project Structure
+```
+forestly/
+├── src/forestly/
+│   ├── core/          # Core classes and validators
+│   ├── panels/        # Panel implementations
+│   └── exporters/     # Export format handlers
+├── docs/              # Documentation and examples
+└── tests/             # Test suite
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
+
+## Resources
+
+- [GitHub Repository](https://github.com/yourusername/forestly)
+- [API Reference](api_reference.html)
+- [Clinical Trial Examples](clinical_examples.html)
+
+## License
+
+MIT License - See LICENSE file for details

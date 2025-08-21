@@ -1,0 +1,152 @@
+---
+title: "Basic Forest Plot Example"
+format:
+  html:
+    code-fold: true
+    code-tools: true
+---
+
+## Introduction
+
+This example demonstrates how to create a basic forest plot using the `forestly` package for clinical trial subgroup analysis.
+
+## Setup
+
+```{python}
+#| label: setup
+#| message: false
+
+import polars as pl
+from reactable import embed_css
+from forestly import ForestPlot, TextPanel, SparklinePanel, Config
+
+# Enable reactable CSS
+embed_css()
+```
+
+## Create Clinical Trial Data
+
+```{python}
+#| label: create-data
+
+# Create example efficacy data for subgroup analysis
+efficacy_data = pl.DataFrame({
+    "subgroup": ["Overall", "Age <65", "Age ≥65", "Male", "Female", 
+                 "ECOG 0", "ECOG 1", "Prior Therapy", "No Prior Therapy"],
+    "category": ["Overall", "Age", "Age", "Sex", "Sex", 
+                 "Performance", "Performance", "History", "History"],
+    "hazard_ratio": [0.72, 0.68, 0.81, 0.69, 0.75, 0.65, 0.78, 0.73, 0.71],
+    "hr_ci_lower": [0.58, 0.51, 0.62, 0.52, 0.57, 0.48, 0.60, 0.55, 0.54],
+    "hr_ci_upper": [0.89, 0.91, 1.05, 0.92, 0.98, 0.87, 1.01, 0.96, 0.93],
+    "p_value": [0.003, 0.012, 0.089, 0.015, 0.042, 0.004, 0.061, 0.025, 0.011],
+    "treatment_events": [45, 24, 21, 23, 22, 18, 27, 30, 15],
+    "treatment_total": [150, 78, 72, 75, 75, 60, 90, 100, 50],
+    "control_events": [62, 35, 27, 33, 29, 28, 34, 41, 21],
+    "control_total": [148, 76, 72, 74, 74, 59, 89, 99, 49],
+})
+
+# Display the data
+print(f"Data shape: {efficacy_data.shape}")
+efficacy_data.head()
+```
+
+## Create Forest Plot
+
+```{python}
+#| label: create-forest-plot
+
+# Create the forest plot
+forest = ForestPlot(
+    data=efficacy_data,
+    panels=[
+        # Subgroup labels with hierarchical grouping
+        TextPanel(
+            variables="subgroup",
+            group_by="category",
+            title="Subgroup",
+            width=200
+        ),
+        
+        # Treatment arm events
+        TextPanel(
+            variables=["treatment_events", "treatment_total"],
+            title="Treatment",
+            labels=["n", "N"],
+            width=100
+        ),
+        
+        # Control arm events
+        TextPanel(
+            variables=["control_events", "control_total"],
+            title="Control",
+            labels=["n", "N"],
+            width=100
+        ),
+        
+        # Forest plot sparkline
+        SparklinePanel(
+            variables="hazard_ratio",
+            lower="hr_ci_lower",
+            upper="hr_ci_upper",
+            title="Hazard Ratio (95% CI)",
+            reference_line=1.0,
+            xlim=(0.4, 1.2),
+            width=300
+        ),
+        
+        # P-values
+        TextPanel(
+            variables="p_value",
+            title="P-value",
+            width=80
+        )
+    ],
+    config=Config(
+        title="Overall Survival Subgroup Analysis",
+        footnote="Stratified Cox proportional hazards model adjusted for baseline factors",
+        source="Study ABC-001, ITT Population, Data cutoff: 2024-01-01",
+        colors=["#FF6B35"],
+        sparkline_height=35,
+        formatters={
+            "p_value": lambda x: f"{x:.3f}" if x >= 0.001 else "<0.001",
+            "hazard_ratio": lambda x: f"{x:.2f}",
+        }
+    )
+)
+
+print("Forest plot created successfully!")
+```
+
+## Display Interactive Forest Plot
+
+```{python}
+#| label: display-forest-plot
+
+# Generate and display the interactive Reactable
+forest.to_reactable()
+```
+
+## Interpretation
+
+The forest plot shows:
+
+- **Overall Effect**: The treatment shows a significant benefit with HR = 0.72 (95% CI: 0.58-0.89, p=0.003)
+- **Age Subgroups**: Younger patients (<65) show greater benefit than older patients
+- **Performance Status**: ECOG 0 patients show the strongest treatment effect
+- **Consistency**: Treatment effect is consistent across most subgroups (all HRs < 1.0)
+
+## Export Options
+
+```{python}
+#| label: export-options
+#| eval: false
+
+# Export to RTF for regulatory submission
+forest.to_rtf("forest_plot_subgroup.rtf")
+
+# Export to static plot
+forest.to_plotnine().save("forest_plot_subgroup.png", dpi=300)
+
+# Export processed data
+forest.to_dataframe().write_csv("forest_plot_data.csv")
+```

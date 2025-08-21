@@ -1,1 +1,51 @@
-__pycache__/sparkline_point.cpython-313.pyc
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Documentation
+docs/_site/
+docs/.quarto/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.html
+!docs/*.html
+uv.lock

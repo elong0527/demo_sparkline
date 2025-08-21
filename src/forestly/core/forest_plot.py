@@ -1,0 +1,154 @@
+"""Core ForestPlot class for forest plot system."""
+
+import polars as pl
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from forestly.core.config import Config
+from forestly.panels.base import Panel
+
+
+class ForestPlot(BaseModel):
+    """Main class for creating forest plots from clinical trial data."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    data: pl.DataFrame
+    panels: list[Panel]
+    config: Config = Field(default_factory=Config)
+
+    @field_validator("data")
+    @classmethod
+    def validate_data(cls, v: pl.DataFrame) -> pl.DataFrame:
+        """Validate input data.
+
+        Args:
+            v: Input DataFrame
+
+        Returns:
+            Validated DataFrame
+
+        Raises:
+            ValueError: If data is empty
+        """
+        if v.is_empty():
+            raise ValueError("Data cannot be empty")
+        return v
+
+    @field_validator("panels")
+    @classmethod
+    def validate_panels(cls, v: list[Panel]) -> list[Panel]:
+        """Validate panels.
+
+        Args:
+            v: List of panels
+
+        Returns:
+            Validated panels
+
+        Raises:
+            ValueError: If no panels provided
+        """
+        if not v:
+            raise ValueError("At least one panel must be provided")
+        return v
+
+    def model_post_init(self, __context) -> None:
+        """Post-initialization validation."""
+        self._validate_columns()
+
+    def _validate_columns(self) -> None:
+        """Validate that all required columns exist in data.
+
+        Raises:
+            ValueError: If required columns are missing
+        """
+        all_required = set()
+        for panel in self.panels:
+            all_required.update(panel.get_required_columns())
+
+        available = set(self.data.columns)
+        missing = all_required - available
+
+        if missing:
+            raise ValueError(f"Missing required columns in data: {missing}")
+
+    def _prepare_reactable_data(self) -> dict:
+        """Prepare data for Reactable with nesting.
+
+        Returns:
+            Dictionary with prepared data and configuration
+        """
+        result = {
+            "data": self.data,
+            "panels": [],
+            "config": self.config.model_dump(),
+        }
+
+        for panel in self.panels:
+            panel_data = panel.render(self.data)
+            result["panels"].append(panel_data)
+
+        return result
+
+    def to_reactable(self):
+        """Generate interactive Reactable table.
+
+        Returns:
+            Reactable object
+        """
+        from forestly.exporters.reactable import ReactableExporter
+
+        exporter = ReactableExporter()
+        return exporter.export(self)
+
+    def to_dataframe(self) -> pl.DataFrame:
+        """Export processed DataFrame.
+
+        Returns:
+            Processed DataFrame
+        """
+        return self.data
+
+    def to_rtf(self, filename: str, **kwargs) -> None:
+        """Export to RTF for regulatory submissions.
+
+        Args:
+            filename: Output filename
+            **kwargs: Additional RTF options
+        """
+        from forestly.exporters.rtf import RTFExporter
+
+        exporter = RTFExporter()
+        exporter.export(self, filename, **kwargs)
+
+    def to_plotnine(self):
+        """Generate static plot using plotnine.
+
+        Returns:
+            ggplot object
+        """
+        from forestly.exporters.plotnine import PlotnineExporter
+
+        exporter = PlotnineExporter()
+        return exporter.export(self)
+
+    def get_panel_by_type(self, panel_type: type) -> list[Panel]:
+        """Get all panels of a specific type.
+
+        Args:
+            panel_type: Type of panel to filter
+
+        Returns:
+            List of panels matching the type
+        """
+        return [p for p in self.panels if isinstance(p, panel_type)]
+
+    def update_config(self, **kwargs) -> None:
+        """Update configuration with new values.
+
+        Args:
+            **kwargs: Configuration parameters to update
+        """
+        current_config = self.config.model_dump()
+        current_config.update(kwargs)
+        self.config = Config(**current_config)
