@@ -1,11 +1,16 @@
 # Forest Plot System
 
 ## Executive Summary
-A clinical trial-focused forest plot system that takes pre-calculated statistics and generates publication-ready visualizations for safety and efficacy analyses.
+A forest plot system that takes pre-calculated statistics and generates publication-ready visualizations.
+
+Common Use Case 
+   - safety assessment.
+   - efficacy assessment especially subgroup analysis.
 
 ## 1. Core API Design
 
 ### 1.1 Primary Class Structure
+
 ```python
 class ForestPlot:
     """Main class for creating forest plots from clinical trial data"""
@@ -77,11 +82,11 @@ class TextPanel(Panel):
     def __init__(
         self,
         variables: str | list[str],
+        group_by: str | list[str] | None = None
         title: str | None = None,
         labels: str | list[str] | None = None,
         width: int | list[int] | None = None,
         footer: str = "",
-        group_by: str | list[str] | None = None
     ):
         super().__init__(variables=variables, title=title, labels=labels, width=width, footer=footer)
         self.group_by = group_by
@@ -405,3 +410,11 @@ class ForestPlot:
 - **Compliance**: Built-in regulatory metadata and formatting
 - **Reusability**: Same code works for safety and efficacy analyses
 - **Integration**: Works with existing ADaM datasets and workflows
+
+## 9. Requirements 
+
+- using Pydantic v2 for strong typing 
+- using pytest for unit test 
+- using uv for environment management 
+- using quarto for documentation 
+- using polars for data frame (do not depends on pandas)
