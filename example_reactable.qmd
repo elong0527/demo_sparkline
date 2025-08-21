@@ -1,0 +1,76 @@
+---
+title: "Reactable with Sparklines"
+---
+
+## Setup
+
+This example demonstrates how to create a reactable table with sparkline visualizations using Python.
+
+```{python}
+#| label: setup
+#| message: false
+
+import polars as pl
+from reactable import Reactable, Column, JS, embed_css
+from sparkline_point import sparkline_point_js
+```
+
+```{python}
+embed_css()
+```
+
+## Create Sample Data
+
+```{python}
+#| label: create-data
+
+# Create example data
+df = pl.DataFrame({
+    'x': [5.1, 4.9, 4.7, 4.6, 5.0],
+    'y': [3.5, 3.0, 3.2, 3.1, 3.6],
+    'measurement': [5.1, 4.9, 4.7, 4.6, 5.0],
+    'error': [0.2, 0.15, 0.3, 0.1, 0.25]
+})
+```
+
+## Generate Sparkline Function
+
+```{python}
+#| label: generate-sparkline
+
+# Generate sparkline JavaScript code
+sparkline_js = sparkline_point_js(
+    tbl=df,
+    x='measurement',
+    x_lower='error',
+    x_upper='error',
+    xlim=(4, 6),
+    height=30,
+    width=150,
+    color='#FFD700',
+    vline=5.0
+)
+```
+
+## Create Reactable with Sparklines
+
+```{python}
+#| label: create-reactable
+
+# Create and display the reactable table with sparkline column
+Reactable(
+    data=df,
+    columns=[
+        Column(
+            id="measurement",
+            name="Measurement",
+            cell=JS(sparkline_js)
+        ),
+        Column(
+            id="error",
+            name="Error Bar",
+            cell=JS(sparkline_js)
+        )
+    ]
+)
+```
