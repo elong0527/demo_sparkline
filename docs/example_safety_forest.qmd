@@ -75,10 +75,10 @@ safety_data.head()
 safety_forest = ForestPlot(
     data=safety_data,
     panels=[
-        # AE terms grouped by SOC
+        # AE terms grouped by SOC (System Organ Class)
         TextPanel(
             variables="ae_term",
-            group_by="soc",
+            group_by="soc",  # Group adverse events by System Organ Class
             title="Adverse Event",
             width=200
         ),

@@ -59,10 +59,9 @@ efficacy_data.head()
 forest = ForestPlot(
     data=efficacy_data,
     panels=[
-        # Subgroup labels
         TextPanel(
             variables="subgroup",
-            # group_by="category",  # Temporarily disable grouping
+            group_by="category", 
             title="Subgroup",
             width=200
         ),

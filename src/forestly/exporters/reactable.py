@@ -41,7 +41,18 @@ class ReactableExporter:
 
         # Add grouping if specified
         if group_by:
-            reactable_args["group_by"] = group_by[0] if len(group_by) == 1 else group_by
+            # For single group column
+            if len(group_by) == 1:
+                reactable_args["group_by"] = group_by[0]
+            else:
+                # For multiple group columns (nested grouping)
+                reactable_args["group_by"] = group_by
+            
+            # Set default expanded to True so nested rows are visible by default
+            reactable_args["default_expanded"] = True
+            
+            # Enable pagination for sub rows
+            reactable_args["paginate_sub_rows"] = True
 
         # Add title if specified
         if forest_plot.config.title:
@@ -80,6 +91,22 @@ class ReactableExporter:
             List of Column objects
         """
         columns = []
+
+        # Add group_by columns if they exist and aren't already in variables
+        if panel.group_by:
+            group_cols = [panel.group_by] if isinstance(panel.group_by, str) else panel.group_by
+            for group_col in group_cols:
+                # Check if this group column is not already included in variables
+                variables_list = [panel.variables] if isinstance(panel.variables, str) else panel.variables if panel.variables else []
+                if group_col not in variables_list:
+                    col_args = {
+                        "id": group_col,
+                        "name": group_col.replace("_", " ").title(),  # Format column name
+                        "aggregate": "unique",  # Show unique value for grouped rows
+                    }
+                    if panel.width:
+                        col_args["width"] = 150  # Default width for group columns
+                    columns.append(Column(**col_args))
 
         if panel.variables:
             variables = (
