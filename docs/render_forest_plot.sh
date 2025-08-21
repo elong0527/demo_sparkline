@@ -53,5 +53,5 @@ BEGIN {
 # Replace the original file with the processed one
 mv "$TEMP_FILE" "$HTML_FILE"
 
-echo "✓ Complete! $HTML_FILE has been rendered with forest plot libraries."
+echo "Complete! $HTML_FILE has been rendered with forest plot libraries."
 echo "Open with: open $HTML_FILE"

@@ -11,11 +11,11 @@ format:
 
 Forestly is a production-ready forest plot system designed for clinical trials, featuring:
 
-- 📊 **Interactive Visualizations**: Reactable tables with embedded sparklines
-- 🏗️ **Panel-Based Architecture**: Flexible layout system for customization
-- 📈 **Multiple Export Formats**: RTF, static plots, and data frames
-- ✅ **Data Validation**: Pydantic models ensure data integrity
-- 🔍 **Hierarchical Support**: Nested groupings with drill-down capabilities
+- **Interactive Visualizations**: Reactable tables with embedded sparklines
+- **Panel-Based Architecture**: Flexible layout system for customization
+- **Multiple Export Formats**: RTF, static plots, and data frames
+- **Data Validation**: Pydantic models ensure data integrity
+- **Hierarchical Support**: Nested groupings with drill-down capabilities
 
 ## Quick Start
 

@@ -31,7 +31,7 @@ embed_css()
 
 # Create example efficacy data for subgroup analysis
 efficacy_data = pl.DataFrame({
-    "subgroup": ["Overall", "Age <65", "Age ≥65", "Male", "Female", 
+    "subgroup": ["Overall", "Age <65", "Age >=65", "Male", "Female", 
                  "ECOG 0", "ECOG 1", "Prior Therapy", "No Prior Therapy"],
     "category": ["Overall", "Age", "Age", "Sex", "Sex", 
                  "Performance", "Performance", "History", "History"],
