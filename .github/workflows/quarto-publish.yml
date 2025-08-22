@@ -26,40 +26,53 @@ jobs:
           
       - name: Install uv
         uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
           
       - name: Install Python dependencies
         run: |
           uv venv
+          source .venv/bin/activate
           uv pip install -e .
-          uv pip install jupyter ipykernel
+          uv pip install jupyter ipykernel jupyter-cache
+          
+          # Verify installation
+          python -c "import forestly; print('Forestly installed successfully')"
           
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
         with:
           version: 1.5.57
           
+      - name: Configure Jupyter kernel
+        run: |
+          source .venv/bin/activate
+          python -m ipykernel install --user --name=python3
+          
+          # List available kernels for debugging
+          jupyter kernelspec list
+          
       - name: Render Quarto documents
         run: |
-          cd docs
-          source ../.venv/bin/activate
-          
-          # Register the kernel for Quarto
-          python -m ipykernel install --user --name=forestly
+          source .venv/bin/activate
           
           # Set Python path for Quarto
           export QUARTO_PYTHON=$(which python)
+          echo "Using Python: $QUARTO_PYTHON"
           
           # Render all documents
-          quarto render
+          cd docs
+          quarto render --execute
           
       - name: Inject required libraries
         run: |
           cd docs/_site
           
-          # Function to inject libraries into HTML files
+          # Check if site was generated
+          if [ ! -d "." ] || [ -z "$(ls -A .)" ]; then
+            echo "Error: _site directory is empty"
+            exit 1
+          fi
+          
+          # Inject libraries into HTML files
           for html_file in *.html; do
             if [ -f "$html_file" ]; then
               echo "Processing $html_file..."
@@ -79,6 +92,8 @@ jobs:
               mv "${html_file}.tmp" "$html_file"
             fi
           done
+          
+          echo "Library injection completed"
           
       - name: Setup Pages
         uses: actions/configure-pages@v4
