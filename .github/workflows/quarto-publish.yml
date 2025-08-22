@@ -1,0 +1,93 @@
+name: Quarto Publish
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+      
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          
+      - name: Install Python dependencies
+        run: |
+          uv venv
+          uv pip install -e .
+          uv pip install jupyter ipykernel
+          
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: 1.5.57
+          
+      - name: Render Quarto documents
+        run: |
+          cd docs
+          source ../.venv/bin/activate
+          
+          # Register the kernel for Quarto
+          python -m ipykernel install --user --name=forestly
+          
+          # Set Python path for Quarto
+          export QUARTO_PYTHON=$(which python)
+          
+          # Render all documents
+          quarto render
+          
+      - name: Inject required libraries
+        run: |
+          cd docs/_site
+          
+          # Function to inject libraries into HTML files
+          for html_file in *.html; do
+            if [ -f "$html_file" ]; then
+              echo "Processing $html_file..."
+              awk '
+              BEGIN {scripts_inserted = 0}
+              {
+                  if (/<script/ && !scripts_inserted) {
+                      print "<!-- Essential libraries for forest plot sparklines -->"
+                      print "<script src=\"https://unpkg.com/react@17/umd/react.production.min.js\"></script>"
+                      print "<script src=\"https://unpkg.com/react-dom@17/umd/react-dom.production.min.js\"></script>"
+                      print "<script src=\"https://cdn.plot.ly/plotly-2.18.2.min.js\"></script>"
+                      print "<!-- End essential libraries -->"
+                      scripts_inserted = 1
+                  }
+                  print $0
+              }' "$html_file" > "${html_file}.tmp"
+              mv "${html_file}.tmp" "$html_file"
+            fi
+          done
+          
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_site
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

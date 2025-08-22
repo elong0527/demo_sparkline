@@ -3,23 +3,59 @@ project:
   output-dir: _site
 
 website:
-  title: "Forestly Documentation"
+  title: "Forestly"
+  description: "Forest Plot System for Clinical Trials"
+  site-url: "https://elong0527.github.io/demo_sparkline"
+  repo-url: "https://github.com/elong0527/demo_sparkline"
+  repo-actions: [edit, issue]
+  
   navbar:
+    background: primary
     left:
-      - href: index.qmd
-        text: Home
-      - href: example_basic_forest.qmd
-        text: Basic Forest Plot
-      - href: example_safety_forest.qmd
-        text: Safety Forest Plot
+      - text: "Home"
+        href: index.qmd
+      - text: "Examples"
+        menu:
+          - text: "Basic Forest Plot"
+            href: example_basic_forest.qmd
+          - text: "Safety Forest Plot"
+            href: example_safety_forest.qmd
+      - text: "API Reference"
+        href: api_reference.qmd
+    right:
+      - icon: github
+        href: https://github.com/elong0527/demo_sparkline
+        
+  sidebar:
+    style: "docked"
+    search: true
+    contents:
+      - section: "Getting Started"
+        contents:
+          - index.qmd
+      - section: "Examples"
+        contents:
+          - example_basic_forest.qmd
+          - example_safety_forest.qmd
+      - section: "Reference"
+        contents:
+          - api_reference.qmd
 
 format:
   html:
     theme: cosmo
     css: styles.css
     toc: true
+    toc-depth: 3
+    toc-location: right
+    code-fold: true
+    code-tools: true
 
 execute:
   freeze: auto
+  cache: true
   
 jupyter: python3
+
+metadata-files:
+  - _metadata.yml
