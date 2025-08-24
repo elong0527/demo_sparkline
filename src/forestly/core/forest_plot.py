@@ -218,8 +218,22 @@ class ForestPlot(BaseModel):
         """Prepare panels with data-specific configuration."""
         data = self.get_prepared_data()
         
+        # Import here to avoid circular imports
+        from ..panels.sparkline import SparklinePanel
+        
+        # Collect all SparklinePanel instances
+        sparkline_panels = [p for p in self.panels if isinstance(p, SparklinePanel)]
+        
+        # Compute shared xlim for all sparkline panels (even if just one)
+        if sparkline_panels:
+            shared_xlim = SparklinePanel.compute_shared_xlim(sparkline_panels, data)
+            # Apply shared xlim to all panels that don't have explicit xlim
+            for panel in sparkline_panels:
+                if not panel.xlim:
+                    panel.xlim = shared_xlim
+        
+        # Let each panel handle any other preparation
         for panel in self.panels:
-            # Let each panel handle its own preparation
             panel.prepare(data)
 
     def get_grouping_columns(self) -> list[str]:

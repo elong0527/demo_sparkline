@@ -344,61 +344,82 @@ class SparklinePanel(Panel):
         )
 
     def prepare(self, data: pl.DataFrame) -> None:
-        """Prepare panel by inferring xlim if not specified.
+        """Prepare panel (currently no-op, xlim is set at ForestPlot level).
 
         Args:
             data: Input DataFrame
         """
-        self.infer_xlim(data)
-
-    def infer_xlim(self, data: pl.DataFrame) -> None:
-        """Infer xlim based on data if not specified.
-
+        # X-limits are computed at the ForestPlot level for all panels
+        pass
+    
+    @classmethod
+    def compute_shared_xlim(cls, panels: list["SparklinePanel"], data: pl.DataFrame) -> tuple[float, float]:
+        """Compute shared x-limits across multiple sparkline panels.
+        
         Args:
-            data: Input DataFrame
+            panels: List of SparklinePanel instances
+            data: DataFrame with panel data
+            
+        Returns:
+            Tuple of (min, max) for shared x-axis limits
         """
-        if self.xlim:
-            return  # Already specified
+        from forestly.utils.common import normalize_to_list
+        
+        min_vals = []
+        max_vals = []
+        
+        for panel in panels:
+            # Skip panels with explicit xlim
+            if panel.xlim:
+                continue
+                
+            # Get all numeric columns used in this panel
+            numeric_cols = []
             
-        # Get all numeric columns used in this panel
-        numeric_cols = []
-        
-        # Add main variables
-        if self.variables:
-            numeric_cols.extend(normalize_to_list(self.variables))
-        
-        # Add lower bounds
-        if self.lower:
-            numeric_cols.extend(normalize_to_list(self.lower))
-        
-        # Add upper bounds
-        if self.upper:
-            numeric_cols.extend(normalize_to_list(self.upper))
-        
-        # Calculate min and max across all columns
-        if numeric_cols:
-            min_vals = []
-            max_vals = []
+            # Add main variables
+            if panel.variables:
+                numeric_cols.extend(normalize_to_list(panel.variables))
             
+            # Add lower bounds
+            if panel.lower:
+                numeric_cols.extend(normalize_to_list(panel.lower))
+            
+            # Add upper bounds
+            if panel.upper:
+                numeric_cols.extend(normalize_to_list(panel.upper))
+            
+            # Calculate min and max across all columns
             for col in numeric_cols:
                 if col in data.columns:
                     col_data = data[col].drop_nulls()
                     if len(col_data) > 0:
                         min_vals.append(col_data.min())
                         max_vals.append(col_data.max())
+        
+        if min_vals and max_vals:
+            data_min = min(min_vals)
+            data_max = max(max_vals)
             
-            if min_vals and max_vals:
-                data_min = min(min_vals)
-                data_max = max(max_vals)
-                
-                # Add 10% padding on each side
+            # Special handling for when 0 is important (e.g., risk difference)
+            # Ensure 0 is included if data spans across it
+            if data_min < 0 and data_max > 0:
+                # Include 0 with minimal padding
+                padding_min = abs(data_min) * 0.05
+                padding_max = abs(data_max) * 0.05
+                return (data_min - padding_min, data_max + padding_max)
+            else:
+                # Add 5% padding on each side
                 range_val = data_max - data_min
                 if range_val > 0:
-                    padding = range_val * 0.1
+                    padding = range_val * 0.05
                 else:
-                    padding = abs(data_min) * 0.1 if data_min != 0 else 1
+                    padding = abs(data_min) * 0.05 if data_min != 0 else 1
                 
-                self.xlim = (data_min - padding, data_max + padding)
+                return (data_min - padding, data_max + padding)
+        
+        # Default range if no data
+        return (-1, 1)
+
 
     def validate_confidence_intervals(self, data: pl.DataFrame) -> None:
         """Validate that confidence intervals contain point estimates.

@@ -101,7 +101,6 @@ safety_forest = ForestPlot(
             variables=["ae_prop_placebo", "ae_prop_low", "ae_prop_high"],
             title="AE Proportion (%)",
             labels=["Placebo", "Low Dose", "High Dose"],
-            xlim=(0, 40),
             width=400,
             show_x_axis=True,
             show_legend=True
@@ -115,10 +114,9 @@ safety_forest = ForestPlot(
             labels=["Low Dose", "High Dose"],
             title="Risk Difference (%) + 95% CI\nvs. Placebo",
             reference_line=0,
-            xlim=(-10, 35),
             width=450,
-            footer="Treatment <-- Favor --> Placebo",
             show_x_axis=True,
+            x_label="Placebo <-- Favor --> Treatment",
             show_legend=False
         ),
         
