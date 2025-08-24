@@ -90,7 +90,9 @@ forest = ForestPlot(
             title="Hazard Ratio (95% CI)",
             reference_line=1.0,
             xlim=(0.4, 1.2),
-            width=300
+            width=300,
+            show_x_axis=True,
+            show_legend=True
         ),
         
         # P-values

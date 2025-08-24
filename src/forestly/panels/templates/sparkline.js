@@ -1,116 +1,106 @@
-function(${function_params}) {
-  // Create Plotly component
-  const PlotComponent = window.createPlotlyComponent ? window.createPlotlyComponent(window.Plotly) : 
-    class extends React.Component {
-      componentDidMount() {
-        window.Plotly.newPlot(this.el, this.props.data, this.props.layout, this.props.config);
-      }
-      componentWillUnmount() {
-        window.Plotly.purge(this.el);
-      }
-      render() {
-        return React.createElement('div', {ref: (el) => this.el = el});
-      }
-    };
-  
-  // Parse configuration
-  const config = ${sparkline_config};
-  
-  // Generate data traces
-  const traces = [];
-  
-  config.variables.forEach((variable, i) => {
-    const value = cell.row[variable];
-    if (value != null && value !== undefined) {
-      const trace = {
-        x: [value],
-        y: [i * 0.15],
-        type: 'scatter',
-        mode: 'markers',
-        marker: {size: 8, color: config.colors[i]},
-        name: config.labels[i],
-        hovertemplate: config.labels[i] + ': %{x}<extra></extra>'
-      };
-      
-      // Add error bars if bounds are provided
-      if (config.lower[i] && config.upper[i]) {
-        const lower = cell.row[config.lower[i]];
-        const upper = cell.row[config.upper[i]];
-        if (lower != null && upper != null) {
-          trace.error_x = {
-            type: 'data',
-            symmetric: false,
-            array: [upper - value],
-            arrayminus: [value - lower],
-            visible: true,
-            color: config.colors[i],
-            thickness: 1.5,
-            width: 3
-          };
+function(cell, state) {
+  // Ensure createPlotlyComponent is available
+  const Plot = typeof createPlotlyComponent !== 'undefined' 
+    ? createPlotlyComponent(Plotly)
+    : class extends React.Component {
+        componentDidMount() {
+          Plotly.newPlot(this.el, this.props.data, this.props.layout, this.props.config);
         }
+        componentDidUpdate() {
+          Plotly.react(this.el, this.props.data, this.props.layout, this.props.config);
+        }
+        render() {
+          return React.createElement('div', {ref: (el) => this.el = el});
+        }
+      };
+  
+  // Data variables
+  const x = [${js_x}];
+  const y = [${js_y}];
+  const x_lower = [${js_x_lower}];
+  const x_upper = [${js_x_upper}];
+  const text = [${js_text}];
+  const color = [${js_color}];
+  const color_errorbar = [${js_color_errorbar}];
+  
+  // Layout variables
+  const x_range = [${js_x_range}];
+  const y_range = [${js_y_range}];
+  const vline = ${js_vline};
+  const height = ${js_height};
+  const width = ${js_width};
+  const color_vline = ${js_color_vline};
+  const margin = [${js_margin}];
+  const x_label = "${js_xlab}";
+  
+  // Legend variables
+  const showlegend = ${js_showlegend};
+  const legend_title = "${js_legend_title}";
+  const legend_position = ${js_legend_position};
+  const legend_label = [${js_legend_label}];
+
+  return React.createElement(Plot, {
+    data: [
+      ${data_trace}
+    ],
+    layout: {
+      height: height,
+      width: width,
+      margin: {
+        b: margin[0],
+        l: margin[1],
+        t: margin[2],
+        r: margin[3],
+        pad: margin[4]
+      },
+      xaxis: {
+        domain: [0, 1],
+        title: {
+          text: x_label,
+          standoff: 0,
+          font: { size: 12 }
+        },
+        range: x_range,
+        showline: ${js_show_xaxis},
+        showticklabels: ${js_show_xaxis},
+        ticks: ${js_show_xaxis} ? "outside" : "",
+        zeroline: false,
+        fixedrange: true
+      },
+      yaxis: {
+        domain: [0, 1],
+        title: "",
+        range: y_range,
+        showgrid: false,
+        zeroline: false,
+        showticklabels: false,
+        fixedrange: true
+      },
+      shapes: vline !== null && vline !== "[]" ? [{
+        type: "line",
+        y0: y_range[0],
+        y1: y_range[1],
+        yref: "paper",
+        x0: vline,
+        x1: vline,
+        line: { color: color_vline }
+      }] : [],
+      plot_bgcolor: "rgba(0, 0, 0, 0)",
+      paper_bgcolor: "rgba(0, 0, 0, 0)",
+      hoverlabel: { bgcolor: "lightgray" },
+      showlegend: showlegend,
+      hovermode: "closest",
+      legend: {
+        title: { text: legend_title },
+        orientation: "h",
+        xanchor: "center",
+        x: 0.5,
+        y: legend_position
       }
-      
-      traces.push(trace);
-    }
-  });
-  
-  if (traces.length === 0) return null;
-  const yRange = traces.length > 1 ? [-0.2, (traces.length - 1) * 0.15 + 0.2] : [-0.5, 0.5];
-  
-  // Handle x-axis limits
-  let xlim = null;
-  if (config.xlim) {
-    const xPadding = (config.xlim[1] - config.xlim[0]) * 0.02;
-    xlim = [config.xlim[0] - xPadding, config.xlim[1] + xPadding];
-  }
-  
-  // Handle reference line
-  const shapes = [];
-  if (config.reference_line !== null) {
-    const refValue = typeof config.reference_line === 'string' 
-      ? cell.row[config.reference_line] 
-      : config.reference_line;
-    
-    if (refValue != null) {
-      shapes.push({
-        type: 'line',
-        x0: refValue,
-        x1: refValue,
-        y0: yRange[0],
-        y1: yRange[1],
-        line: {color: config.reference_line_color || '#999999', width: 1, dash: 'dash'}
-      });
-    }
-  }
-  
-  // Layout configuration
-  const layout = {
-    height: config.height || 45,
-    width: config.width || 300,
-    margin: {l: 10, r: 10, t: 5, b: 5},
-    xaxis: {
-      range: xlim,
-      zeroline: false,
-      showticklabels: false,
-      showgrid: false,
-      fixedrange: true,
-      title: null
     },
-    yaxis: {
-      visible: false,
-      range: yRange,
-      fixedrange: true
-    },
-    showlegend: false,
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    shapes: shapes,
-    annotations: []
-  };
-  
-  return React.createElement(PlotComponent, {
-    data: traces,
-    layout: layout,
-    config: {displayModeBar: false, responsive: true}
+    config: {
+      showSendToCloud: false,
+      displayModeBar: false
+    }
   });
 }

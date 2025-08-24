@@ -102,7 +102,9 @@ safety_forest = ForestPlot(
             title="AE Proportion (%)",
             labels=["Placebo", "Low Dose", "High Dose"],
             xlim=(0, 40),
-            width=400
+            width=400,
+            show_x_axis=True,
+            show_legend=True
         ),
         
         # Risk Difference panel with confidence intervals for both doses vs Placebo
@@ -115,7 +117,9 @@ safety_forest = ForestPlot(
             reference_line=0,
             xlim=(-10, 35),
             width=450,
-            footer="Treatment <-- Favor --> Placebo"
+            footer="Treatment <-- Favor --> Placebo",
+            show_x_axis=True,
+            show_legend=False
         ),
         
         # Placebo counts and percentages

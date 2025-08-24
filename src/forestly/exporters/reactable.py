@@ -161,8 +161,11 @@ class ReactableExporter:
             
             # Generate JavaScript if not provided
             if not panel.js_function:
-                # Use panel's generate_javascript method
-                panel.js_function = panel.generate_javascript(colors=config.colors if hasattr(config, 'colors') else None)
+                # Use panel's generate_javascript method with type="cell" for main sparkline
+                panel.js_function = panel.generate_javascript(
+                    colors=config.colors if hasattr(config, 'colors') else None,
+                    type="cell"
+                )
             js_func = panel.js_function
             
             # Use first variable as column ID
@@ -175,18 +178,27 @@ class ReactableExporter:
             if panel.width:
                 col_args["width"] = panel.width
             
-            # Add footer if specified in panel
-            if panel.footer:
-                # Check if footer is JavaScript (for legend)
+            # Handle footer display: combine custom footer text with x-axis/legend
+            if panel.show_x_axis or panel.show_legend:
+                # Generate footer JavaScript with x-axis and/or legend
+                footer_js = panel.generate_javascript(
+                    colors=config.colors if hasattr(config, 'colors') else None,
+                    type="footer"
+                )
+                if footer_js:
+                    # If there's also a custom footer text, we'll need to combine them
+                    if panel.footer and not panel.footer.startswith("function"):
+                        # For now, use the JavaScript footer (x-axis/legend)
+                        # The custom text footer can be shown as part of the x-label
+                        col_args["footer"] = JS(footer_js)
+                    else:
+                        col_args["footer"] = JS(footer_js)
+            elif panel.footer:
+                # Only custom footer text, no x-axis or legend
                 if panel.footer.startswith("function"):
                     col_args["footer"] = JS(panel.footer)
                 else:
                     col_args["footer"] = panel.footer
-            # Auto-generate legend for multi-variable sparklines with labels
-            elif panel.labels and len(variables) > 1:
-                legend_js = panel.generate_legend_javascript(colors=config.colors if hasattr(config, 'colors') else None)
-                if legend_js:
-                    col_args["footer"] = JS(legend_js)
             
             columns.append(Column(**col_args))
 
