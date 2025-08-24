@@ -149,6 +149,63 @@ class SparklinePanel(Panel):
             sparkline_config=json.dumps(config)
         )
 
+    def prepare(self, data: pl.DataFrame) -> None:
+        """Prepare panel by inferring xlim if not specified.
+
+        Args:
+            data: Input DataFrame
+        """
+        self.infer_xlim(data)
+
+    def infer_xlim(self, data: pl.DataFrame) -> None:
+        """Infer xlim based on data if not specified.
+
+        Args:
+            data: Input DataFrame
+        """
+        if self.xlim:
+            return  # Already specified
+            
+        # Get all numeric columns used in this panel
+        numeric_cols = []
+        
+        # Add main variables
+        if self.variables:
+            numeric_cols.extend(normalize_to_list(self.variables))
+        
+        # Add lower bounds
+        if self.lower:
+            numeric_cols.extend(normalize_to_list(self.lower))
+        
+        # Add upper bounds
+        if self.upper:
+            numeric_cols.extend(normalize_to_list(self.upper))
+        
+        # Calculate min and max across all columns
+        if numeric_cols:
+            min_vals = []
+            max_vals = []
+            
+            for col in numeric_cols:
+                if col in data.columns:
+                    col_data = data[col].drop_nulls()
+                    if len(col_data) > 0:
+                        min_vals.append(col_data.min())
+                        max_vals.append(col_data.max())
+            
+            if min_vals and max_vals:
+                data_min = min(min_vals)
+                data_max = max(max_vals)
+                
+                # Add 10% padding on each side
+                range_val = data_max - data_min
+                if range_val > 0:
+                    padding = range_val * 0.1
+                else:
+                    padding = abs(data_min) * 0.1 if data_min != 0 else 1
+                
+                self.xlim = (data_min - padding, data_max + padding)
+
     def validate_confidence_intervals(self, data: pl.DataFrame) -> None:
         """Validate that confidence intervals contain point estimates.
 

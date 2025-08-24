@@ -53,3 +53,15 @@ class Panel(BaseModel, ABC):
 
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
+
+    def prepare(self, data: pl.DataFrame) -> None:
+        """Prepare panel with data-specific configuration.
+
+        Args:
+            data: Input DataFrame
+        
+        Note:
+            Override this method in subclasses to implement panel-specific
+            preparation logic (e.g., inferring xlim for SparklinePanel).
+        """
+        pass

@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forestly.core.config import Config
 from forestly.panels.base import Panel
+from forestly.utils.common import normalize_to_list
 
 
 class ForestPlot(BaseModel):
@@ -152,3 +153,85 @@ class ForestPlot(BaseModel):
         current_config = self.config.model_dump()
         current_config.update(kwargs)
         self.config = Config(**current_config)
+
+    def get_used_columns(self) -> list[str]:
+        """Get all column names used in panels in the order they appear.
+
+        Returns:
+            List of column names used in panel order
+        """
+        # Import here to avoid circular imports
+        from ..panels.sparkline import SparklinePanel
+        from ..panels.text import TextPanel
+        
+        used_columns = []
+        seen = set()
+        
+        for panel in self.panels:
+            panel_columns = []
+            
+            if isinstance(panel, TextPanel):
+                # Add group_by columns first
+                if panel.group_by:
+                    panel_columns.extend(normalize_to_list(panel.group_by))
+                
+                # Then add variable columns
+                if panel.variables:
+                    panel_columns.extend(normalize_to_list(panel.variables))
+                        
+            elif isinstance(panel, SparklinePanel):
+                # For SparklinePanel, we need all the columns it uses
+                # Add main variable columns
+                if panel.variables:
+                    panel_columns.extend(normalize_to_list(panel.variables))
+                
+                # Add lower bound columns
+                if panel.lower:
+                    panel_columns.extend(normalize_to_list(panel.lower))
+                
+                # Add upper bound columns
+                if panel.upper:
+                    panel_columns.extend(normalize_to_list(panel.upper))
+                
+                # Add reference line column if it's a column name
+                if panel.reference_line and isinstance(panel.reference_line, str):
+                    panel_columns.append(panel.reference_line)
+            
+            # Add panel columns to used_columns, avoiding duplicates
+            for col in panel_columns:
+                if col not in seen:
+                    seen.add(col)
+                    used_columns.append(col)
+        
+        return used_columns
+
+    def get_prepared_data(self) -> pl.DataFrame:
+        """Get data filtered to only used columns.
+
+        Returns:
+            DataFrame with only columns used in panels
+        """
+        used_columns = self.get_used_columns()
+        return self.data.select(used_columns)
+
+    def prepare_panels(self) -> None:
+        """Prepare panels with data-specific configuration."""
+        data = self.get_prepared_data()
+        
+        for panel in self.panels:
+            # Let each panel handle its own preparation
+            panel.prepare(data)
+
+    def get_grouping_columns(self) -> list[str]:
+        """Get grouping columns from panels.
+
+        Returns:
+            List of grouping column names
+        """
+        # Import here to avoid circular imports
+        from ..panels.text import TextPanel
+        
+        for panel in self.panels:
+            if isinstance(panel, TextPanel) and panel.group_by:
+                return normalize_to_list(panel.group_by)
+        return []
