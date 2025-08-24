@@ -19,6 +19,18 @@ $grid-gutter-width: 1.5rem !default;
   max-width: none !important;
 }
 
+// Override reactable's default width
+.Reactable {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+// Make reactable container use full width
+.Reactable-container {
+  width: 100% !important;
+  max-width: none !important;
+}
+
 // Make content area wider
 .content {
   max-width: none !important;
@@ -33,4 +45,10 @@ main {
 pre {
   max-width: 100%;
   overflow-x: auto;
+}
+
+// Make cell content full width
+.cell-output-display {
+  width: 100% !important;
+  max-width: none !important;
 }
