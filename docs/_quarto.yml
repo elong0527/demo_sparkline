@@ -43,13 +43,19 @@ website:
 
 format:
   html:
-    theme: cosmo
-    css: styles.css
+    theme: 
+      - cosmo
+      - custom.scss
     toc: true
     toc-depth: 3
     toc-location: right
     code-fold: true
     code-tools: true
+    grid:
+      body-width: 5000px
+      sidebar-width: 250px
+      margin-width: 250px
+      gutter-width: 1.5rem
 
 execute:
   freeze: auto

@@ -1,0 +1,36 @@
+/*-- scss:defaults --*/
+
+// Custom grid configuration for wider body
+$grid-body-width: 5000px !default;
+$grid-sidebar-width: 250px !default;
+$grid-margin-width: 250px !default;
+$grid-gutter-width: 1.5rem !default;
+
+/*-- scss:rules --*/
+
+// Additional custom styles
+.quarto-container {
+  max-width: 5200px !important;
+}
+
+// Ensure reactable tables can use full width
+.reactable {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+// Make content area wider
+.content {
+  max-width: none !important;
+}
+
+// Adjust main content area
+main {
+  max-width: 5000px !important;
+}
+
+// Ensure code blocks don't overflow
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
