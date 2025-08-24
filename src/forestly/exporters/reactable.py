@@ -1,11 +1,12 @@
 """Reactable exporter for forest plot system."""
 
 import polars as pl
-from reactable import Column, Reactable, JS, Theme
+from reactable import Column, Reactable, JS, Theme, ColGroup
 
 from forestly.core.forest_plot import ForestPlot
 from forestly.panels.sparkline import SparklinePanel
 from forestly.panels.text import TextPanel
+from forestly.utils.common import normalize_to_list, normalize_width_to_list
 
 
 class ReactableExporter:
@@ -24,13 +25,13 @@ class ReactableExporter:
         used_columns = self._get_used_columns(forest_plot.panels)
         
         # Select only the columns that are used in panels
-        data_filtered = forest_plot.data.select(used_columns)
+        data = forest_plot.data.select(used_columns)
         
-        # Convert polars to pandas for reactable
-        data = data_filtered.to_pandas()
-
-        # Create columns from panels
-        columns = self._create_columns(forest_plot.panels, forest_plot.config)
+        # Calculate xlim ranges for panels that need them
+        self._infer_xlim_for_panels(forest_plot.panels, data)
+        
+        # Create columns and column groups from panels
+        columns, column_groups = self._create_columns_and_groups(forest_plot.panels, forest_plot.config)
 
         # Find grouping columns
         group_by = self._get_grouping_columns(forest_plot.panels)
@@ -48,12 +49,16 @@ class ReactableExporter:
             "striped": True,
             "highlight": True,
             "full_width": True,
-            "width": "100%",  # Use percentage instead of fixed pixels
+            "width": "100%",
             "wrap": False,
             "theme": Theme(
                 cell_padding="0px 8px"
             ),
         }
+        
+        # Add column groups if any
+        if column_groups:
+            reactable_args["column_groups"] = column_groups
 
         # Add grouping if specified
         if group_by:
@@ -70,31 +75,32 @@ class ReactableExporter:
             # Enable pagination for sub rows
             reactable_args["paginate_sub_rows"] = True
 
-        # Add title if specified
-        if forest_plot.config.title:
-            reactable_args["element_id"] = "forest-plot-table"
+
 
         return Reactable(**reactable_args)
 
-    def _create_columns(self, panels: list, config) -> list[Column]:
-        """Create Reactable columns from panels.
+    def _create_columns_and_groups(self, panels: list, config) -> tuple[list[Column], list[ColGroup]]:
+        """Create Reactable columns and column groups from panels.
 
         Args:
             panels: List of Panel objects
             config: Config object
 
         Returns:
-            List of Column objects
+            Tuple of (List of Column objects, List of ColGroup objects)
         """
         columns = []
+        column_groups = []
         
         # Keep track of which columns should be displayed
         display_columns = set()
 
         for panel in panels:
             if isinstance(panel, TextPanel):
-                panel_columns = self._create_text_columns(panel, config)
+                panel_columns, panel_group = self._create_text_columns_with_group(panel, config)
                 columns.extend(panel_columns)
+                if panel_group:
+                    column_groups.append(panel_group)
                 # Add TextPanel columns to display
                 for col in panel_columns:
                     display_columns.add(col.id)
@@ -117,53 +123,54 @@ class ReactableExporter:
                     show=False  # Hide this column
                 ))
 
-        return columns
+        return columns, column_groups
 
-    def _create_text_columns(self, panel: TextPanel, config) -> list[Column]:
-        """Create columns for TextPanel.
+    def _create_text_columns_with_group(self, panel: TextPanel, config) -> tuple[list[Column], ColGroup | None]:
+        """Create columns and optional column group for TextPanel.
 
         Args:
             panel: TextPanel instance
             config: Config object
 
         Returns:
-            List of Column objects
+            Tuple of (List of Column objects, Optional ColGroup object)
         """
         columns = []
+        column_group = None
+        variable_columns = []
 
-        # Add group_by columns if they exist and aren't already in variables
+        # Handle group_by columns first
         if panel.group_by:
-            group_cols = [panel.group_by] if isinstance(panel.group_by, str) else panel.group_by
+            group_cols = normalize_to_list(panel.group_by)
             for group_col in group_cols:
-                # Check if this group column is not already included in variables
-                variables_list = [panel.variables] if isinstance(panel.variables, str) else panel.variables if panel.variables else []
+                variables_list = normalize_to_list(panel.variables) if panel.variables else []
                 if group_col not in variables_list:
                     col_args = {
                         "id": group_col,
-                        "name": group_col.replace("_", " ").title(),  # Format column name
-                        "aggregate": "unique",  # Show unique value for grouped rows
+                        "name": group_col.replace("_", " ").title(),
+                        "aggregate": "unique",
                     }
                     if panel.width:
-                        col_args["width"] = 150  # Default width for group columns
+                        col_args["width"] = 150
                     columns.append(Column(**col_args))
 
+        # Handle main variables
         if panel.variables:
-            variables = (
-                [panel.variables]
-                if isinstance(panel.variables, str)
-                else panel.variables
-            )
-            labels = (
-                [panel.labels] if isinstance(panel.labels, str) else panel.labels
-            ) if panel.labels else variables
-            widths = (
-                [panel.width] if isinstance(panel.width, int) else panel.width
-            ) if panel.width else [None] * len(variables)
+            variables = normalize_to_list(panel.variables)
+            labels = normalize_to_list(panel.labels) if panel.labels else variables
+            widths = normalize_width_to_list(panel.width, len(variables))
 
+            # Create columns for each variable
             for var, label, width in zip(variables, labels, widths):
+                # Determine display name based on context
+                if panel.title and len(variables) == 1:
+                    display_name = panel.title
+                else:
+                    display_name = label
+                
                 col_args = {
                     "id": var,
-                    "name": label if label else var,
+                    "name": display_name,
                 }
 
                 if width:
@@ -172,14 +179,22 @@ class ReactableExporter:
                 # Apply formatter if specified
                 if config.formatters and var in config.formatters:
                     formatter = config.formatters[var]
-                    # Create a closure to capture the formatter correctly
                     def make_cell_formatter(fmt):
                         return lambda cell_info: fmt(cell_info.value)
                     col_args["cell"] = make_cell_formatter(formatter)
 
-                columns.append(Column(**col_args))
+                column = Column(**col_args)
+                columns.append(column)
+                variable_columns.append(var)
 
-        return columns
+            # Create column group if we have a title and multiple variables
+            if panel.title and len(variables) > 1:
+                column_group = ColGroup(
+                    name=panel.title,
+                    columns=variable_columns
+                )
+
+        return columns, column_group
 
     def _create_sparkline_columns(self, panel: SparklinePanel, config) -> list[Column]:
         """Create columns for SparklinePanel.
@@ -194,14 +209,13 @@ class ReactableExporter:
         columns = []
 
         if panel.variables:
-            variables = (
-                [panel.variables]
-                if isinstance(panel.variables, str)
-                else panel.variables
-            )
+            variables = normalize_to_list(panel.variables)
             
-            # Generate JavaScript function for sparkline with all variables
-            js_func = self._generate_sparkline_js(panel, variables, config)
+            # Generate JavaScript if not provided
+            if not panel.js_function:
+                # Use panel's generate_javascript method
+                panel.js_function = panel.generate_javascript(colors=config.colors if hasattr(config, 'colors') else None)
+            js_func = panel.js_function
             
             # Use first variable as column ID
             col_args = {
@@ -213,174 +227,23 @@ class ReactableExporter:
             if panel.width:
                 col_args["width"] = panel.width
             
+            # Add footer if specified in panel
+            if panel.footer:
+                # Check if footer is JavaScript (for legend)
+                if panel.footer.startswith("function"):
+                    col_args["footer"] = JS(panel.footer)
+                else:
+                    col_args["footer"] = panel.footer
+            # Auto-generate legend for multi-variable sparklines with labels
+            elif panel.labels and len(variables) > 1:
+                legend_js = panel.generate_legend_javascript(colors=config.colors if hasattr(config, 'colors') else None)
+                if legend_js:
+                    col_args["footer"] = JS(legend_js)
+            
             columns.append(Column(**col_args))
 
         return columns
 
-    def _generate_sparkline_js(
-        self, panel: SparklinePanel, variables: list, config
-    ) -> str:
-        """Generate JavaScript function for sparkline rendering.
-
-        Args:
-            panel: SparklinePanel instance
-            variables: List of variable names for this sparkline
-            config: Config object
-
-        Returns:
-            JavaScript function as string
-        """
-        # Get lower and upper bounds (if provided)
-        lower_cols = []
-        upper_cols = []
-        if panel.lower:
-            if isinstance(panel.lower, str):
-                lower_cols = [panel.lower]
-            elif isinstance(panel.lower, list):
-                lower_cols = panel.lower
-        if panel.upper:
-            if isinstance(panel.upper, str):
-                upper_cols = [panel.upper]
-            elif isinstance(panel.upper, list):
-                upper_cols = panel.upper
-
-        # Determine x-axis limits
-        if panel.xlim:
-            xlim_str = f"[{panel.xlim[0]}, {panel.xlim[1]}]"
-        else:
-            xlim_str = "[0, 2]"  # Default range
-
-        # Reference line
-        ref_line = "null"
-        if panel.reference_line is not None:
-            if isinstance(panel.reference_line, str):
-                ref_line = f"cell.row['{panel.reference_line}']"
-            else:
-                ref_line = str(panel.reference_line)
-
-        # Get labels for legend
-        labels = panel.labels if panel.labels else variables
-        if isinstance(labels, str):
-            labels = [labels]
-        
-        # Generate traces for each variable
-        traces_code = []
-        for i, var in enumerate(variables):
-            color = config.colors[i] if config.colors and len(config.colors) > i else "#4A90E2"
-            lower_col = lower_cols[i] if i < len(lower_cols) else None
-            upper_col = upper_cols[i] if i < len(upper_cols) else None
-            label = labels[i] if i < len(labels) else var
-            
-            trace_code = f"""
-  const value_{i} = cell.row['{var}'];
-  if (value_{i} != null && value_{i} !== undefined) {{
-    const trace_{i} = {{
-      x: [value_{i}],
-      y: [{i * 0.15}],
-      type: 'scatter',
-      mode: 'markers',
-      marker: {{
-        size: 8,
-        color: '{color}'
-      }},
-      name: '{label}',
-      hovertemplate: '{label}: %{{x}}<extra></extra>'
-    }};
-    
-    // Add error bars if bounds exist
-    {f"const lower_{i} = cell.row['{lower_col}'];" if lower_col else f"const lower_{i} = null;"}
-    {f"const upper_{i} = cell.row['{upper_col}'];" if upper_col else f"const upper_{i} = null;"}
-    
-    if (lower_{i} != null && upper_{i} != null) {{
-      trace_{i}.error_x = {{
-        type: 'data',
-        symmetric: false,
-        array: [upper_{i} - value_{i}],
-        arrayminus: [value_{i} - lower_{i}],
-        visible: true,
-        color: '{color}',
-        thickness: 1.5,
-        width: 3
-      }};
-    }}
-    
-    traces.push(trace_{i});
-  }}"""
-            traces_code.append(trace_code)
-        
-        # Generate JavaScript function
-        js_code = f"""function(cell, state) {{
-  const traces = [];
-  {"".join(traces_code)}
-  
-  // Return null if no traces
-  if (traces.length === 0) return null;
-  
-  // Calculate y-axis range based on number of traces
-  const yRange = traces.length > 1 ? [-0.1, (traces.length - 1) * 0.15 + 0.1] : [-0.5, 0.5];
-  
-  // Layout configuration
-  const layout = {{
-    height: {config.sparkline_height if config.sparkline_height else 40},
-    width: {panel.width if panel.width else 200},
-    margin: {{l: 5, r: 5, t: 5, b: 5}},
-    xaxis: {{
-      range: {xlim_str},
-      zeroline: false,
-      showticklabels: false,
-      showgrid: false,
-      fixedrange: true
-    }},
-    yaxis: {{
-      visible: false,
-      range: yRange,
-      fixedrange: true
-    }},
-    showlegend: false,
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    shapes: []
-  }};
-  
-  // Add reference line if specified
-  const refLine = {ref_line};
-  if (refLine != null && refLine !== undefined) {{
-    layout.shapes.push({{
-      type: 'line',
-      x0: refLine,
-      x1: refLine,
-      y0: yRange[0],
-      y1: yRange[1],
-      line: {{
-        color: '{panel.reference_line_color if panel.reference_line_color else config.reference_line_color if hasattr(config, 'reference_line_color') else '#999999'}',
-        width: 1,
-        dash: 'dash'
-      }}
-    }});
-  }}
-  
-  // Create Plotly component
-  const PlotComponent = window.createPlotlyComponent ? window.createPlotlyComponent(window.Plotly) : 
-    class extends React.Component {{
-      componentDidMount() {{
-        window.Plotly.newPlot(this.el, this.props.data, this.props.layout, this.props.config);
-      }}
-      componentWillUnmount() {{
-        window.Plotly.purge(this.el);
-      }}
-      render() {{
-        return React.createElement('div', {{ref: (el) => this.el = el}});
-      }}
-    }};
-  
-  return React.createElement(PlotComponent, {{
-    data: traces,
-    layout: layout,
-    config: {{displayModeBar: false, responsive: true}}
-  }});
-}}"""
-
-        return js_code
 
     def _get_used_columns(self, panels: list) -> list[str]:
         """Get all column names used in panels in the order they appear.
@@ -400,40 +263,25 @@ class ReactableExporter:
             if isinstance(panel, TextPanel):
                 # Add group_by columns first
                 if panel.group_by:
-                    if isinstance(panel.group_by, str):
-                        panel_columns.append(panel.group_by)
-                    else:
-                        panel_columns.extend(panel.group_by)
+                    panel_columns.extend(normalize_to_list(panel.group_by))
                 
                 # Then add variable columns
                 if panel.variables:
-                    if isinstance(panel.variables, str):
-                        panel_columns.append(panel.variables)
-                    else:
-                        panel_columns.extend(panel.variables)
+                    panel_columns.extend(normalize_to_list(panel.variables))
                         
             elif isinstance(panel, SparklinePanel):
                 # For SparklinePanel, we need all the columns it uses
                 # Add main variable columns
                 if panel.variables:
-                    if isinstance(panel.variables, str):
-                        panel_columns.append(panel.variables)
-                    else:
-                        panel_columns.extend(panel.variables)
+                    panel_columns.extend(normalize_to_list(panel.variables))
                 
                 # Add lower bound columns
                 if panel.lower:
-                    if isinstance(panel.lower, str):
-                        panel_columns.append(panel.lower)
-                    else:
-                        panel_columns.extend(panel.lower)
+                    panel_columns.extend(normalize_to_list(panel.lower))
                 
                 # Add upper bound columns
                 if panel.upper:
-                    if isinstance(panel.upper, str):
-                        panel_columns.append(panel.upper)
-                    else:
-                        panel_columns.extend(panel.upper)
+                    panel_columns.extend(normalize_to_list(panel.upper))
                 
                 # Add reference line column if it's a column name
                 if panel.reference_line and isinstance(panel.reference_line, str):
@@ -447,6 +295,55 @@ class ReactableExporter:
         
         return used_columns
 
+    def _infer_xlim_for_panels(self, panels: list, data: pl.DataFrame) -> None:
+        """Infer xlim for panels based on data if not specified.
+
+        Args:
+            panels: List of Panel objects
+            data: DataFrame with the data
+        """
+        for panel in panels:
+            if isinstance(panel, SparklinePanel) and not panel.xlim:
+                # Get all numeric columns used in this panel
+                numeric_cols = []
+                
+                # Add main variables
+                if panel.variables:
+                    numeric_cols.extend(normalize_to_list(panel.variables))
+                
+                # Add lower bounds
+                if panel.lower:
+                    numeric_cols.extend(normalize_to_list(panel.lower))
+                
+                # Add upper bounds
+                if panel.upper:
+                    numeric_cols.extend(normalize_to_list(panel.upper))
+                
+                # Calculate min and max across all columns
+                if numeric_cols:
+                    min_vals = []
+                    max_vals = []
+                    
+                    for col in numeric_cols:
+                        if col in data.columns:
+                            col_data = data[col].drop_nulls()
+                            if len(col_data) > 0:
+                                min_vals.append(col_data.min())
+                                max_vals.append(col_data.max())
+                    
+                    if min_vals and max_vals:
+                        data_min = min(min_vals)
+                        data_max = max(max_vals)
+                        
+                        # Add 10% padding on each side
+                        range_val = data_max - data_min
+                        if range_val > 0:
+                            padding = range_val * 0.1
+                        else:
+                            padding = abs(data_min) * 0.1 if data_min != 0 else 1
+                        
+                        panel.xlim = (data_min - padding, data_max + padding)
+
     def _get_grouping_columns(self, panels: list) -> list[str]:
         """Get grouping columns from panels.
 
@@ -458,8 +355,5 @@ class ReactableExporter:
         """
         for panel in panels:
             if isinstance(panel, TextPanel) and panel.group_by:
-                if isinstance(panel.group_by, str):
-                    return [panel.group_by]
-                else:
-                    return panel.group_by
+                return normalize_to_list(panel.group_by)
         return []

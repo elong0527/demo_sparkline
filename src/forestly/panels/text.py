@@ -3,6 +3,7 @@
 import polars as pl
 
 from forestly.panels.base import Panel
+from forestly.utils.common import normalize_to_list, normalize_width_to_list
 
 
 class TextPanel(Panel):
@@ -22,26 +23,17 @@ class TextPanel(Panel):
         result = {"data": data}
 
         if self.variables:
-            if isinstance(self.variables, str):
-                columns = [self.variables]
-            elif isinstance(self.variables, list):
-                columns = self.variables
-            elif isinstance(self.variables, dict):
+            if isinstance(self.variables, dict):
                 columns = list(self.variables.keys())
             else:
-                columns = []
-
+                columns = normalize_to_list(self.variables)
             result["columns"] = columns
 
         if self.group_by:
-            group_cols = (
-                [self.group_by] if isinstance(self.group_by, str) else self.group_by
-            )
-            result["group_by"] = group_cols
+            result["group_by"] = normalize_to_list(self.group_by)
 
         if self.labels:
-            labels = [self.labels] if isinstance(self.labels, str) else self.labels
-            result["labels"] = labels
+            result["labels"] = normalize_to_list(self.labels)
 
         if self.width:
             widths = [self.width] if isinstance(self.width, int) else self.width
@@ -61,18 +53,13 @@ class TextPanel(Panel):
         required = set()
 
         if self.variables:
-            if isinstance(self.variables, str):
-                required.add(self.variables)
-            elif isinstance(self.variables, list):
-                required.update(self.variables)
-            elif isinstance(self.variables, dict):
+            if isinstance(self.variables, dict):
                 required.update(self.variables.keys())
+            else:
+                required.update(normalize_to_list(self.variables))
 
         if self.group_by:
-            if isinstance(self.group_by, str):
-                required.add(self.group_by)
-            else:
-                required.update(self.group_by)
+            required.update(normalize_to_list(self.group_by))
 
         return required
 
@@ -88,9 +75,7 @@ class TextPanel(Panel):
         if not self.group_by:
             return data
 
-        group_cols = (
-            [self.group_by] if isinstance(self.group_by, str) else self.group_by
-        )
+        group_cols = normalize_to_list(self.group_by)
 
         # Sort by group columns to ensure proper hierarchy
         return data.sort(group_cols)

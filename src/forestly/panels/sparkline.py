@@ -1,8 +1,12 @@
 """Sparkline panel module for forest plot system."""
 
+from pathlib import Path
+from string import Template
+
 import polars as pl
 
 from forestly.panels.base import Panel
+from forestly.utils.common import normalize_to_list, safe_get_color
 
 
 class SparklinePanel(Panel):
@@ -13,6 +17,7 @@ class SparklinePanel(Panel):
     reference_line: float | str | None = None
     reference_line_color: str | None = None
     xlim: tuple[float, float] | None = None
+    js_function: str | None = None  # Custom JavaScript function for rendering
 
     def render(self, data: pl.DataFrame) -> dict:
         """Render panel data for display.
@@ -27,22 +32,15 @@ class SparklinePanel(Panel):
 
         # Handle variables (point estimates)
         if self.variables:
-            if isinstance(self.variables, str):
-                estimates = [self.variables]
-            elif isinstance(self.variables, list):
-                estimates = self.variables
-            else:
-                estimates = []
+            estimates = normalize_to_list(self.variables)
             result["estimates"] = estimates
 
         # Handle confidence intervals
         if self.lower:
-            lowers = [self.lower] if isinstance(self.lower, str) else self.lower
-            result["lower_bounds"] = lowers
+            result["lower_bounds"] = normalize_to_list(self.lower)
 
         if self.upper:
-            uppers = [self.upper] if isinstance(self.upper, str) else self.upper
-            result["upper_bounds"] = uppers
+            result["upper_bounds"] = normalize_to_list(self.upper)
 
         # Handle reference line
         if self.reference_line is not None:
@@ -61,8 +59,7 @@ class SparklinePanel(Panel):
             result["xlim"] = self.xlim
 
         if self.labels:
-            labels = [self.labels] if isinstance(self.labels, str) else self.labels
-            result["labels"] = labels
+            result["labels"] = normalize_to_list(self.labels)
 
         if self.width:
             result["width"] = self.width
@@ -82,24 +79,15 @@ class SparklinePanel(Panel):
 
         # Add estimate columns
         if self.variables:
-            if isinstance(self.variables, str):
-                required.add(self.variables)
-            elif isinstance(self.variables, list):
-                required.update(self.variables)
+            required.update(normalize_to_list(self.variables))
 
         # Add lower bound columns
         if self.lower:
-            if isinstance(self.lower, str):
-                required.add(self.lower)
-            elif isinstance(self.lower, list):
-                required.update(self.lower)
+            required.update(normalize_to_list(self.lower))
 
         # Add upper bound columns
         if self.upper:
-            if isinstance(self.upper, str):
-                required.add(self.upper)
-            elif isinstance(self.upper, list):
-                required.update(self.upper)
+            required.update(normalize_to_list(self.upper))
 
         # Add reference line column if it's a column name
         if isinstance(self.reference_line, str):
@@ -107,61 +95,59 @@ class SparklinePanel(Panel):
 
         return required
 
-    def generate_javascript(self) -> str:
-        """Generate JavaScript code for sparkline rendering.
+    def generate_javascript(self, colors: list[str] | None = None) -> str:
+        """Generate JavaScript code for sparkline rendering using the template.
+
+        Args:
+            colors: Optional list of colors for each trace
 
         Returns:
             JavaScript code as string
         """
-        js_template = """
-        function(cellInfo) {
-            const value = cellInfo.value;
-            const lower = cellInfo.row['${lower}'];
-            const upper = cellInfo.row['${upper}'];
-            
-            const trace = {
-                x: [value],
-                y: [0],
-                error_x: {
-                    type: 'data',
-                    symmetric: false,
-                    array: [upper - value],
-                    arrayminus: [value - lower],
-                    visible: true
-                },
-                type: 'scatter',
-                mode: 'markers',
-                marker: {size: 8}
-            };
-            
-            const layout = {
-                height: ${height},
-                width: ${width},
-                margin: {l: 0, r: 0, t: 0, b: 0},
-                xaxis: {
-                    range: [${xmin}, ${xmax}],
-                    zeroline: false,
-                    showticklabels: false
-                },
-                yaxis: {
-                    visible: false,
-                    range: [-0.5, 0.5]
-                },
-                showlegend: false,
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                plot_bgcolor: 'rgba(0,0,0,0)'
-            };
-            
-            ${reference_line_code}
-            
-            return React.createElement(Plotly.Plot, {
-                data: [trace],
-                layout: layout,
-                config: {displayModeBar: false}
-            });
+        import json
+        
+        # Load the sparkline template
+        template_path = Path(__file__).parent / "templates" / "sparkline.js"
+        with open(template_path, "r") as f:
+            template = Template(f.read())
+        
+        # Get variables and bounds
+        variables = normalize_to_list(self.variables) if self.variables else []
+        lower_cols = normalize_to_list(self.lower) if self.lower else []
+        upper_cols = normalize_to_list(self.upper) if self.upper else []
+        labels = normalize_to_list(self.labels) if self.labels else variables
+        
+        # Prepare colors for each variable
+        colors_list = []
+        for i in range(len(variables)):
+            colors_list.append(safe_get_color(colors, i))
+        
+        # Prepare lower and upper arrays (use null for missing values)
+        lower_array = []
+        upper_array = []
+        for i in range(len(variables)):
+            lower_array.append(lower_cols[i] if i < len(lower_cols) else None)
+            upper_array.append(upper_cols[i] if i < len(upper_cols) else None)
+        
+        # Build configuration object
+        config = {
+            'variables': variables,
+            'labels': labels,
+            'colors': colors_list,
+            'lower': lower_array,
+            'upper': upper_array,
+            'xlim': self.xlim,
+            'reference_line': self.reference_line,
+            'reference_line_color': self.reference_line_color,
+            'height': 45 if len(variables) > 1 else 40,
+            'width': self.width
         }
-        """
-        return js_template
+        
+        # Generate JavaScript using template
+        return template.substitute(
+            function_params="cell, state",
+            sparkline_config=json.dumps(config)
+        )
 
     def validate_confidence_intervals(self, data: pl.DataFrame) -> None:
         """Validate that confidence intervals contain point estimates.
@@ -175,9 +161,9 @@ class SparklinePanel(Panel):
         if not (self.variables and self.lower and self.upper):
             return
 
-        estimates = [self.variables] if isinstance(self.variables, str) else self.variables
-        lowers = [self.lower] if isinstance(self.lower, str) else self.lower
-        uppers = [self.upper] if isinstance(self.upper, str) else self.upper
+        estimates = normalize_to_list(self.variables)
+        lowers = normalize_to_list(self.lower)
+        uppers = normalize_to_list(self.upper)
 
         for est, low, up in zip(estimates, lowers, uppers):
             if est in data.columns and low in data.columns and up in data.columns:
@@ -190,3 +176,41 @@ class SparklinePanel(Panel):
                         f"Invalid confidence intervals: {low} <= {est} <= {up} "
                         f"violated in {len(invalid)} rows"
                     )
+    
+    def generate_legend_javascript(self, colors: list[str] | None = None) -> str:
+        """Generate JavaScript for legend footer using the legend template.
+        
+        Args:
+            colors: Optional list of colors for legend items
+            
+        Returns:
+            JavaScript code for legend
+        """
+        import json
+        
+        labels = normalize_to_list(self.labels) if self.labels else []
+        if not labels:
+            return ""
+        
+        # Load the sparkline legend template
+        template_path = Path(__file__).parent / "templates" / "sparkline_legend.js"
+        with open(template_path, "r") as f:
+            template = Template(f.read())
+        
+        # Prepare colors for each label
+        colors_list = []
+        for i in range(len(labels)):
+            colors_list.append(safe_get_color(colors, i))
+        
+        # Build legend configuration object
+        legend_config = {
+            'labels': labels,
+            'colors': colors_list,
+            'height': 25,
+            'width': self.width
+        }
+        
+        # Generate JavaScript using template
+        return template.substitute(
+            legend_config=json.dumps(legend_config)
+        )

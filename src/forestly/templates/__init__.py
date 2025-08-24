@@ -1,1 +1,0 @@
-"""Template components for forest plot system."""
