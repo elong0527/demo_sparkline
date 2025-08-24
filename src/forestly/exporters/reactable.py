@@ -20,8 +20,14 @@ class ReactableExporter:
         Returns:
             Reactable object
         """
+        # Get all column names used in panels (including hidden data columns)
+        used_columns = self._get_used_columns(forest_plot.panels)
+        
+        # Select only the columns that are used in panels
+        data_filtered = forest_plot.data.select(used_columns)
+        
         # Convert polars to pandas for reactable
-        data = forest_plot.data.to_pandas()
+        data = data_filtered.to_pandas()
 
         # Create columns from panels
         columns = self._create_columns(forest_plot.panels, forest_plot.config)
@@ -81,12 +87,35 @@ class ReactableExporter:
             List of Column objects
         """
         columns = []
+        
+        # Keep track of which columns should be displayed
+        display_columns = set()
 
         for panel in panels:
             if isinstance(panel, TextPanel):
-                columns.extend(self._create_text_columns(panel, config))
+                panel_columns = self._create_text_columns(panel, config)
+                columns.extend(panel_columns)
+                # Add TextPanel columns to display
+                for col in panel_columns:
+                    display_columns.add(col.id)
             elif isinstance(panel, SparklinePanel):
-                columns.extend(self._create_sparkline_columns(panel, config))
+                panel_columns = self._create_sparkline_columns(panel, config)
+                columns.extend(panel_columns)
+                # Add SparklinePanel columns to display
+                for col in panel_columns:
+                    display_columns.add(col.id)
+        
+        # Get all data column names
+        all_data_columns = self._get_used_columns(panels)
+        
+        # Add hidden columns for data that's not displayed but needed for sparklines
+        for col_name in all_data_columns:
+            if col_name not in display_columns:
+                # Create a hidden column
+                columns.append(Column(
+                    id=col_name,
+                    show=False  # Hide this column
+                ))
 
         return columns
 
@@ -352,6 +381,71 @@ class ReactableExporter:
 }}"""
 
         return js_code
+
+    def _get_used_columns(self, panels: list) -> list[str]:
+        """Get all column names used in panels in the order they appear.
+
+        Args:
+            panels: List of Panel objects
+
+        Returns:
+            List of column names used in panel order
+        """
+        used_columns = []
+        seen = set()
+        
+        for panel in panels:
+            panel_columns = []
+            
+            if isinstance(panel, TextPanel):
+                # Add group_by columns first
+                if panel.group_by:
+                    if isinstance(panel.group_by, str):
+                        panel_columns.append(panel.group_by)
+                    else:
+                        panel_columns.extend(panel.group_by)
+                
+                # Then add variable columns
+                if panel.variables:
+                    if isinstance(panel.variables, str):
+                        panel_columns.append(panel.variables)
+                    else:
+                        panel_columns.extend(panel.variables)
+                        
+            elif isinstance(panel, SparklinePanel):
+                # For SparklinePanel, we need all the columns it uses
+                # Add main variable columns
+                if panel.variables:
+                    if isinstance(panel.variables, str):
+                        panel_columns.append(panel.variables)
+                    else:
+                        panel_columns.extend(panel.variables)
+                
+                # Add lower bound columns
+                if panel.lower:
+                    if isinstance(panel.lower, str):
+                        panel_columns.append(panel.lower)
+                    else:
+                        panel_columns.extend(panel.lower)
+                
+                # Add upper bound columns
+                if panel.upper:
+                    if isinstance(panel.upper, str):
+                        panel_columns.append(panel.upper)
+                    else:
+                        panel_columns.extend(panel.upper)
+                
+                # Add reference line column if it's a column name
+                if panel.reference_line and isinstance(panel.reference_line, str):
+                    panel_columns.append(panel.reference_line)
+            
+            # Add panel columns to used_columns, avoiding duplicates
+            for col in panel_columns:
+                if col not in seen:
+                    seen.add(col)
+                    used_columns.append(col)
+        
+        return used_columns
 
     def _get_grouping_columns(self, panels: list) -> list[str]:
         """Get grouping columns from panels.

@@ -66,6 +66,11 @@ safety_data = pl.DataFrame({
     "risk_diff_low": [19.2, 18.1, 10.8, 9.7, 7.4, 7.2, 7.2, 6.0, 6.0, 4.9],
     "risk_diff_low_lower": [9.1, 7.7, 3.1, 1.5, -2.0, 0.5, -0.1, -0.1, 1.3, -2.7],
     "risk_diff_low_upper": [29.3, 28.5, 18.5, 17.9, 16.8, 13.9, 14.5, 12.1, 10.7, 12.5],
+    
+    # Risk difference vs placebo (High dose)
+    "risk_diff_high": [19.2, 21.7, 14.3, 7.3, 6.2, 12.0, 7.2, 7.2, 1.2, 2.5],
+    "risk_diff_high_lower": [9.1, 11.0, 6.2, -0.8, -3.2, 4.3, -0.1, 0.1, -2.1, -4.7],
+    "risk_diff_high_upper": [29.3, 32.4, 22.4, 15.4, 15.6, 19.7, 14.5, 14.3, 4.5, 9.7],
 })
 
 print(f"Safety data shape: {safety_data.shape}")
@@ -85,56 +90,36 @@ safety_forest = ForestPlot(
         TextPanel(
             variables="ae_term",
             title="Adverse Events",
-            width=250
+            width=300
         ),
         
-        # AE Proportion panel for low dose
+        # AE Proportion panel showing all three groups
         SparklinePanel(
-            variables=["ae_prop_placebo", "ae_prop_low"],
+            variables=["ae_prop_placebo", "ae_prop_low", "ae_prop_high"],
             title="AE Proportion (%)",
-            labels=["Placebo", "Low Dose"],
+            labels=["Placebo", "Low Dose", "High Dose"],
             xlim=(0, 40),
-            width=300,
+            width=400,
             reference_line=None
         ),
         
-        # Risk Difference panel with confidence intervals (Low dose vs Placebo)
+        # Risk Difference panel with confidence intervals for both doses vs Placebo
         SparklinePanel(
-            variables="risk_diff_low",
-            lower="risk_diff_low_lower",
-            upper="risk_diff_low_upper",
+            variables=["risk_diff_low", "risk_diff_high"],
+            lower=["risk_diff_low_lower", "risk_diff_high_lower"],
+            upper=["risk_diff_low_upper", "risk_diff_high_upper"],
+            labels=["Low Dose", "High Dose"],
             title="Risk Difference (%) + 95% CI\nvs. Placebo",
             reference_line=0,
-            xlim=(-10, 30),
-            width=350
-        ),
-        
-        # Low dose counts and percentages
-        TextPanel(
-            variables=["low_dose_n", "low_dose_pct"],
-            title="Low Dose\n(N=84)",
-            labels=["n", "(%)"],
-            width=100
-        ),
-        
-        # Placebo counts and percentages
-        TextPanel(
-            variables=["placebo_n", "placebo_pct"],
-            title="Placebo\n(N=86)",
-            labels=["n", "(%)"],
-            width=100
+            xlim=(-10, 35),
+            width=450
         )
     ],
     config=Config(
         title="Treatment-Emergent Adverse Events",
-        footnote="Treatment <- Favor -> Placebo",
-        colors=["#8B4513", "#4682B4", "#1976D2"],  # Brown for placebo, blue for low dose, darker blue for risk diff
-        sparkline_height=35,
-        formatters={
-            "placebo_pct": lambda x: f"({x:.1f})",
-            "low_dose_pct": lambda x: f"({x:.1f})",
-            "high_dose_pct": lambda x: f"({x:.1f})",
-        }
+        footnote="Treatment <-- Favor --> Placebo",
+        colors=["#8B4513", "#4682B4", "#2E7D32", "#4682B4", "#2E7D32"],  # Brown for placebo, blues and greens for doses
+        sparkline_height=50
     )
 )
 
