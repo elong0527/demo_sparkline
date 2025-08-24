@@ -57,13 +57,14 @@ function(cell, state) {
         domain: [0, 1],
         title: {
           text: x_label,
-          standoff: 0,
-          font: { size: 12 }
+          standoff: 5,
+          font: { size: 11 }
         },
         range: x_range,
         showline: ${js_show_xaxis},
         showticklabels: ${js_show_xaxis},
         ticks: ${js_show_xaxis} ? "outside" : "",
+        tickfont: { size: 10 },
         zeroline: false,
         fixedrange: true
       },
@@ -78,12 +79,12 @@ function(cell, state) {
       },
       shapes: vline !== null && vline !== "[]" ? [{
         type: "line",
-        y0: y_range[0],
-        y1: y_range[1],
+        y0: -0.1,
+        y1: 1.1,
         yref: "paper",
         x0: vline,
         x1: vline,
-        line: { color: color_vline }
+        line: { color: color_vline, width: 1 }
       }] : [],
       plot_bgcolor: "rgba(0, 0, 0, 0)",
       paper_bgcolor: "rgba(0, 0, 0, 0)",
