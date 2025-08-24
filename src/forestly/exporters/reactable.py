@@ -170,41 +170,50 @@ class ReactableExporter:
                 if isinstance(panel.variables, str)
                 else panel.variables
             )
-
-            for i, var in enumerate(variables):
-                # Generate JavaScript function for sparkline
-                js_func = self._generate_sparkline_js(panel, var, i, config)
-
-                col_args = {
-                    "id": var,
-                    "name": panel.title if panel.title else var,
-                    "cell": JS(js_func),  # Use JS wrapper for JavaScript code
-                }
-
-                if panel.width:
-                    col_args["width"] = panel.width
-
-                columns.append(Column(**col_args))
+            
+            # Generate JavaScript function for sparkline with all variables
+            js_func = self._generate_sparkline_js(panel, variables, config)
+            
+            # Use first variable as column ID
+            col_args = {
+                "id": variables[0],
+                "name": panel.title if panel.title else variables[0],
+                "cell": JS(js_func),  # Use JS wrapper for JavaScript code
+            }
+            
+            if panel.width:
+                col_args["width"] = panel.width
+            
+            columns.append(Column(**col_args))
 
         return columns
 
     def _generate_sparkline_js(
-        self, panel: SparklinePanel, variable: str, index: int, config
+        self, panel: SparklinePanel, variables: list, config
     ) -> str:
         """Generate JavaScript function for sparkline rendering.
 
         Args:
             panel: SparklinePanel instance
-            variable: Variable name for this sparkline
-            index: Index of variable in panel
+            variables: List of variable names for this sparkline
             config: Config object
 
         Returns:
             JavaScript function as string
         """
-        # Get lower and upper bounds
-        lower_col = panel.lower[index] if isinstance(panel.lower, list) else panel.lower if panel.lower else None
-        upper_col = panel.upper[index] if isinstance(panel.upper, list) else panel.upper if panel.upper else None
+        # Get lower and upper bounds (if provided)
+        lower_cols = []
+        upper_cols = []
+        if panel.lower:
+            if isinstance(panel.lower, str):
+                lower_cols = [panel.lower]
+            elif isinstance(panel.lower, list):
+                lower_cols = panel.lower
+        if panel.upper:
+            if isinstance(panel.upper, str):
+                upper_cols = [panel.upper]
+            elif isinstance(panel.upper, list):
+                upper_cols = panel.upper
 
         # Determine x-axis limits
         if panel.xlim:
@@ -220,50 +229,70 @@ class ReactableExporter:
             else:
                 ref_line = str(panel.reference_line)
 
-        # Color
-        color = config.colors[index] if config.colors and len(config.colors) > index else "#4A90E2"
+        # Get labels for legend
+        labels = panel.labels if panel.labels else variables
+        if isinstance(labels, str):
+            labels = [labels]
+        
+        # Generate traces for each variable
+        traces_code = []
+        for i, var in enumerate(variables):
+            color = config.colors[i] if config.colors and len(config.colors) > i else "#4A90E2"
+            lower_col = lower_cols[i] if i < len(lower_cols) else None
+            upper_col = upper_cols[i] if i < len(upper_cols) else None
+            label = labels[i] if i < len(labels) else var
+            
+            trace_code = f"""
+  const value_{i} = cell.row['{var}'];
+  if (value_{i} != null && value_{i} !== undefined) {{
+    const trace_{i} = {{
+      x: [value_{i}],
+      y: [{i * 0.15}],
+      type: 'scatter',
+      mode: 'markers',
+      marker: {{
+        size: 8,
+        color: '{color}'
+      }},
+      name: '{label}',
+      hovertemplate: '{label}: %{{x}}<extra></extra>'
+    }};
+    
+    // Add error bars if bounds exist
+    {f"const lower_{i} = cell.row['{lower_col}'];" if lower_col else f"const lower_{i} = null;"}
+    {f"const upper_{i} = cell.row['{upper_col}'];" if upper_col else f"const upper_{i} = null;"}
+    
+    if (lower_{i} != null && upper_{i} != null) {{
+      trace_{i}.error_x = {{
+        type: 'data',
+        symmetric: false,
+        array: [upper_{i} - value_{i}],
+        arrayminus: [value_{i} - lower_{i}],
+        visible: true,
+        color: '{color}',
+        thickness: 1.5,
+        width: 3
+      }};
+    }}
+    
+    traces.push(trace_{i});
+  }}"""
+            traces_code.append(trace_code)
         
         # Generate JavaScript function
         js_code = f"""function(cell, state) {{
-  // Check if value exists
-  const value = cell.row['{variable}'];
-  if (value == null || value === undefined) return null;
+  const traces = [];
+  {"".join(traces_code)}
   
-  // Get error bar values if they exist
-  {f"const lower = cell.row['{lower_col}'];" if lower_col else "const lower = null;"}
-  {f"const upper = cell.row['{upper_col}'];" if upper_col else "const upper = null;"}
+  // Return null if no traces
+  if (traces.length === 0) return null;
   
-  // Create the trace
-  const trace = {{
-    x: [value],
-    y: [0],
-    type: 'scatter',
-    mode: 'markers',
-    marker: {{
-      size: 8,
-      color: '{color}'
-    }},
-    name: '',
-    hoverinfo: 'x'
-  }};
-  
-  // Add error bars if bounds exist
-  if (lower != null && upper != null) {{
-    trace.error_x = {{
-      type: 'data',
-      symmetric: false,
-      array: [upper - value],
-      arrayminus: [value - lower],
-      visible: true,
-      color: '{color}',
-      thickness: 1.5,
-      width: 3
-    }};
-  }}
+  // Calculate y-axis range based on number of traces
+  const yRange = traces.length > 1 ? [-0.1, (traces.length - 1) * 0.15 + 0.1] : [-0.5, 0.5];
   
   // Layout configuration
   const layout = {{
-    height: {config.sparkline_height},
+    height: {config.sparkline_height if config.sparkline_height else 40},
     width: {panel.width if panel.width else 200},
     margin: {{l: 5, r: 5, t: 5, b: 5}},
     xaxis: {{
@@ -275,7 +304,7 @@ class ReactableExporter:
     }},
     yaxis: {{
       visible: false,
-      range: [-0.5, 0.5],
+      range: yRange,
       fixedrange: true
     }},
     showlegend: false,
@@ -291,10 +320,10 @@ class ReactableExporter:
       type: 'line',
       x0: refLine,
       x1: refLine,
-      y0: -0.5,
-      y1: 0.5,
+      y0: yRange[0],
+      y1: yRange[1],
       line: {{
-        color: '{panel.reference_line_color if panel.reference_line_color else config.reference_line_color}',
+        color: '{panel.reference_line_color if panel.reference_line_color else config.reference_line_color if hasattr(config, 'reference_line_color') else '#999999'}',
         width: 1,
         dash: 'dash'
       }}
@@ -316,7 +345,7 @@ class ReactableExporter:
     }};
   
   return React.createElement(PlotComponent, {{
-    data: [trace],
+    data: traces,
     layout: layout,
     config: {{displayModeBar: false, responsive: true}}
   }});
