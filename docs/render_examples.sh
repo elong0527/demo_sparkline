@@ -23,6 +23,12 @@ PYTHON_PATH="$(which python)"
 echo "[INFO] Using Python: $PYTHON_PATH"
 echo ""
 
+# Clear any existing cache directories
+echo "[INFO] Clearing cache directories..."
+rm -rf _freeze .jupyter_cache
+echo "[OK] Cache cleared"
+echo ""
+
 # Function to inject libraries into HTML
 inject_libraries() {
     local html_file="$1"
@@ -50,8 +56,8 @@ for file in example_*.qmd; do
     if [ -f "$file" ]; then
         echo "[*] Rendering $file..."
         
-        # Use Quarto with the virtual environment Python
-        QUARTO_PYTHON="$PYTHON_PATH" quarto render "$file"
+        # Use Quarto with the virtual environment Python (without cache)
+        QUARTO_PYTHON="$PYTHON_PATH" quarto render "$file" --no-cache
         
         if [ $? -eq 0 ]; then
             # Get the output HTML file name
