@@ -1,7 +1,7 @@
 """Reactable exporter for forest plot system."""
 
 import polars as pl
-from reactable import Column, Reactable, JS
+from reactable import Column, Reactable, JS, Theme
 
 from forestly.core.forest_plot import ForestPlot
 from forestly.panels.sparkline import SparklinePanel
@@ -33,10 +33,20 @@ class ReactableExporter:
         reactable_args = {
             "data": data,
             "columns": columns,
+            "resizable": True,
+            "filterable": True,
+            "searchable": True,
+            "default_page_size": 10,
+            "show_page_size_options": True,
+            "borderless": True,
             "striped": True,
             "highlight": True,
-            "searchable": False,
-            "default_page_size": 20,
+            "full_width": True,
+            "width": 1200,
+            "wrap": False,
+            "theme": Theme(
+                cell_padding="0px 8px"
+            ),
         }
 
         # Add grouping if specified
