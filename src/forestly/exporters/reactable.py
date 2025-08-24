@@ -42,7 +42,7 @@ class ReactableExporter:
             "striped": True,
             "highlight": True,
             "full_width": True,
-            "width": 1200,
+            "width": "100%",  # Use percentage instead of fixed pixels
             "wrap": False,
             "theme": Theme(
                 cell_padding="0px 8px"

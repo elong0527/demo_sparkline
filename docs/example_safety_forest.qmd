@@ -1,5 +1,5 @@
 ---
-title: "Safety Forest Plot with Multiple Treatment Arms"
+title: "Safety Forest Plot - Adverse Events Analysis"
 format:
   html:
     code-fold: true
@@ -8,7 +8,7 @@ format:
 
 ## Introduction
 
-This example demonstrates creating a safety forest plot comparing adverse events across multiple treatment doses.
+This example demonstrates creating a safety forest plot comparing adverse events between treatment and placebo, matching clinical trial reporting standards.
 
 ## Setup
 
@@ -29,104 +29,118 @@ embed_css()
 ```{python}
 #| label: create-safety-data
 
-# Create safety data with multiple treatment arms
+# Create safety data with three treatment groups
 safety_data = pl.DataFrame({
-    # Adverse event information
-    "ae_term": ["Nausea", "Fatigue", "Diarrhea", "Headache", "Dizziness",
-                "Rash", "Neutropenia", "Anemia", "Thrombocytopenia", "Fever"],
-    "soc": ["GI Disorders", "General", "GI Disorders", "Nervous System", "Nervous System",
-            "Skin", "Blood", "Blood", "Blood", "General"],
+    # Adverse event terms
+    "ae_term": [
+        "Application site pruritus",
+        "Pruritus", 
+        "Application site erythema",
+        "Rash",
+        "Erythema",
+        "Dizziness",
+        "Application site irritation",
+        "Sinus bradycardia",
+        "Blister",
+        "Application site dermatitis"
+    ],
     
-    # Placebo arm
-    "placebo_events": [5, 8, 3, 6, 2, 1, 0, 3, 1, 4],
-    "placebo_rate": [5.0, 8.0, 3.0, 6.0, 2.0, 1.0, 0.0, 3.0, 1.0, 4.0],
-    "placebo_total": [100, 100, 100, 100, 100, 100, 100, 100, 100, 100],
+    # Placebo (N=86)
+    "placebo_n": [6, 8, 3, 5, 9, 2, 3, 2, 0, 5],
+    "placebo_pct": [7.0, 9.3, 3.5, 5.8, 10.5, 2.3, 3.5, 2.3, 0.0, 5.8],
     
-    # Low dose treatment
-    "low_dose_events": [8, 12, 5, 7, 4, 3, 2, 5, 2, 6],
-    "low_dose_rate": [7.8, 11.8, 4.9, 6.9, 3.9, 2.9, 2.0, 4.9, 2.0, 5.9],
-    "low_dose_total": [102, 102, 102, 102, 102, 102, 102, 102, 102, 102],
+    # Low dose treatment (N=84)
+    "low_dose_n": [22, 23, 12, 13, 15, 8, 9, 7, 5, 9],
+    "low_dose_pct": [26.2, 27.4, 14.3, 15.5, 17.9, 9.5, 10.7, 8.3, 6.0, 10.7],
     
-    # High dose treatment
-    "high_dose_events": [15, 18, 9, 10, 7, 6, 8, 10, 5, 9],
-    "high_dose_rate": [14.7, 17.6, 8.8, 9.8, 6.9, 5.9, 7.8, 9.8, 4.9, 8.8],
-    "high_dose_total": [102, 102, 102, 102, 102, 102, 102, 102, 102, 102],
+    # High dose treatment (N=84)
+    "high_dose_n": [22, 26, 15, 11, 14, 12, 9, 8, 1, 7],
+    "high_dose_pct": [26.2, 31.0, 17.9, 13.1, 16.7, 14.3, 10.7, 9.5, 1.2, 8.3],
     
-    # Risk differences vs placebo
-    "rd_low": [2.8, 3.8, 1.9, 0.9, 1.9, 1.9, 2.0, 1.9, 1.0, 1.9],
-    "rd_low_lower": [-2.5, -2.1, -2.8, -4.2, -2.3, -1.8, -0.5, -2.5, -1.8, -2.8],
-    "rd_low_upper": [8.1, 9.7, 6.6, 6.0, 6.1, 5.6, 4.5, 6.3, 3.8, 6.6],
+    # AE proportions for sparkline (all three groups)
+    "ae_prop_placebo": [7.0, 9.3, 3.5, 5.8, 10.5, 2.3, 3.5, 2.3, 0.0, 5.8],
+    "ae_prop_low": [26.2, 27.4, 14.3, 15.5, 17.9, 9.5, 10.7, 8.3, 6.0, 10.7],
+    "ae_prop_high": [26.2, 31.0, 17.9, 13.1, 16.7, 14.3, 10.7, 9.5, 1.2, 8.3],
     
-    "rd_high": [9.7, 9.6, 5.8, 3.8, 4.9, 4.9, 7.8, 6.8, 3.9, 4.8],
-    "rd_high_lower": [3.4, 3.1, 0.5, -1.5, 0.3, 1.0, 3.8, 1.8, 0.5, -0.7],
-    "rd_high_upper": [16.0, 16.1, 11.1, 9.1, 9.5, 8.8, 11.8, 11.8, 7.3, 10.3],
+    # Risk difference vs placebo (Low dose)
+    "risk_diff_low": [19.2, 18.1, 10.8, 9.7, 7.4, 7.2, 7.2, 6.0, 6.0, 4.9],
+    "risk_diff_low_lower": [9.1, 7.7, 3.1, 1.5, -2.0, 0.5, -0.1, -0.1, 1.3, -2.7],
+    "risk_diff_low_upper": [29.3, 28.5, 18.5, 17.9, 16.8, 13.9, 14.5, 12.1, 10.7, 12.5],
 })
 
 print(f"Safety data shape: {safety_data.shape}")
 safety_data.head()
 ```
 
-## Create Multi-Arm Safety Forest Plot
+## Create Safety Forest Plot
 
 ```{python}
 #| label: create-safety-forest
 
-# Create safety forest plot comparing doses
+# Create safety forest plot with three treatment arms
 safety_forest = ForestPlot(
     data=safety_data,
     panels=[
-        # AE terms grouped by SOC (System Organ Class)
+        # Adverse Events column
         TextPanel(
             variables="ae_term",
-            group_by="soc",  # Group adverse events by System Organ Class
-            title="Adverse Event",
-            width=200
+            title="Adverse Events",
+            width=250
         ),
         
-        # Event rates for each arm
-        TextPanel(
-            variables=["placebo_events", "placebo_rate"],
-            title="Placebo (N=100)",
-            labels=["n", "%"],
-            width=100
-        ),
-        
-        TextPanel(
-            variables=["low_dose_events", "low_dose_rate"],
-            title="Low Dose (N=102)",
-            labels=["n", "%"],
-            width=100
-        ),
-        
-        TextPanel(
-            variables=["high_dose_events", "high_dose_rate"],
-            title="High Dose (N=102)",
-            labels=["n", "%"],
-            width=100
-        ),
-        
-        # Risk difference plots for both doses
+        # Combined AE Proportion panel with dots for all three groups
         SparklinePanel(
-            variables=["rd_low", "rd_high"],
-            lower=["rd_low_lower", "rd_high_lower"],
-            upper=["rd_low_upper", "rd_high_upper"],
-            title="Risk Difference vs Placebo (%)",
-            labels=["Low Dose", "High Dose"],
+            variables=["ae_prop_placebo", "ae_prop_low", "ae_prop_high"],
+            title="AE Proportion (%)",
+            xlim=(0, 40),
+            width=250,
+            reference_line=None
+        ),
+        
+        # Risk Difference panel with confidence intervals (Low dose vs Placebo)
+        SparklinePanel(
+            variables="risk_diff_low",
+            lower="risk_diff_low_lower",
+            upper="risk_diff_low_upper",
+            title="Risk Difference (%) + 95% CI\nvs. Placebo",
             reference_line=0,
-            xlim=(-10, 20),
+            xlim=(-10, 30),
             width=350
+        ),
+        
+        # Placebo counts and percentages
+        TextPanel(
+            variables=["placebo_n", "placebo_pct"],
+            title="Placebo\n(N=86)",
+            labels=["n", "(%)"],
+            width=100
+        ),
+        
+        # Low dose counts and percentages
+        TextPanel(
+            variables=["low_dose_n", "low_dose_pct"],
+            title="Low Dose\n(N=84)",
+            labels=["n", "(%)"],
+            width=100
+        ),
+        
+        # High dose counts and percentages
+        TextPanel(
+            variables=["high_dose_n", "high_dose_pct"],
+            title="High Dose\n(N=84)",
+            labels=["n", "(%)"],
+            width=100
         )
     ],
     config=Config(
-        title="Treatment-Emergent Adverse Events by Dose",
-        footnote="Risk difference = Treatment % - Placebo %; 95% CI calculated using Newcombe method",
-        source="Safety Population, All causality",
-        colors=["#4A90E2", "#FF6B35"],  # Blue for low dose, orange for high dose
-        sparkline_height=40,
+        title="Treatment-Emergent Adverse Events",
+        footnote="Treatment <- Favor -> Placebo",
+        colors=["#8B4513", "#4682B4", "#2E8B57"],  # Brown for placebo, blue for low dose, green for high dose
+        sparkline_height=35,
         formatters={
-            "placebo_rate": lambda x: f"{x:.1f}",
-            "low_dose_rate": lambda x: f"{x:.1f}",
-            "high_dose_rate": lambda x: f"{x:.1f}",
+            "placebo_pct": lambda x: f"({x:.1f})",
+            "low_dose_pct": lambda x: f"({x:.1f})",
+            "high_dose_pct": lambda x: f"({x:.1f})",
         }
     )
 )
@@ -147,29 +161,17 @@ safety_forest.to_reactable()
 
 The safety forest plot reveals:
 
-1. **Dose-Response Relationship**: Most adverse events show increasing frequency with dose
-2. **Hematologic Events**: Blood-related AEs (neutropenia, anemia) are more prominent at high dose
-3. **GI Tolerability**: Gastrointestinal events (nausea, diarrhea) show clear dose dependency
-4. **Overall Safety**: Low dose has a more favorable safety profile closer to placebo
+1. **Application Site Reactions**: Most common AEs are application-site related (pruritus, erythema, irritation)
+2. **Risk Differences**: All AEs show higher incidence in treatment group vs placebo
+3. **Statistical Significance**: Events where CI doesn't cross 0 indicate significant differences
+4. **Safety Profile**: Largest risk differences seen in pruritus and application site reactions
 
-## Additional Analysis Options
+## Export Options
 
 ```{python}
-#| label: filter-analysis
+#| label: export-options
 #| eval: false
 
-# Filter to show only events with >5% incidence
-significant_aes = safety_data.filter(
-    (pl.col("high_dose_rate") > 5.0) | (pl.col("low_dose_rate") > 5.0)
-)
-
-# Create focused forest plot
-focused_forest = ForestPlot(
-    data=significant_aes,
-    panels=[...],  # Same panel configuration
-    config=Config(
-        title="Common Adverse Events (>5% Incidence)",
-        ...
-    )
-)
-```
+# Export to different formats
+safety_forest.to_rtf("safety_forest_plot.rtf")  # For regulatory submissions
+safety_forest.to_dataframe()  # Get processed data
