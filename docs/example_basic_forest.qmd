@@ -63,7 +63,7 @@ forest = ForestPlot(
             variables="subgroup",
             group_by="category", 
             title="Subgroup",
-            width=200
+            width=100
         ),
         
         # Treatment arm events
@@ -71,7 +71,7 @@ forest = ForestPlot(
             variables=["treatment_events", "treatment_total"],
             title="Treatment",
             labels=["n", "N"],
-            width=100
+            width=60
         ),
         
         # Control arm events
@@ -79,7 +79,7 @@ forest = ForestPlot(
             variables=["control_events", "control_total"],
             title="Control",
             labels=["n", "N"],
-            width=100
+            width=60
         ),
         
         # Forest plot sparkline
@@ -90,7 +90,7 @@ forest = ForestPlot(
             title="Hazard Ratio (95% CI)",
             reference_line=1.0,
             xlim=(0.4, 1.2),
-            width=300,
+            width=200,
             show_x_axis=True,
             show_legend=True
         ),
@@ -99,23 +99,10 @@ forest = ForestPlot(
         TextPanel(
             variables="p_value",
             title="P-value",
-            width=80
+            width=60
         )
     ],
-    config=Config(
-        title="Overall Survival Subgroup Analysis",
-        footnote="Stratified Cox proportional hazards model adjusted for baseline factors",
-        source="Study ABC-001, ITT Population, Data cutoff: 2024-01-01",
-        colors=["#FF6B35"],
-        sparkline_height=35,
-        # formatters={
-        #     "p_value": lambda x: f"{x:.3f}" if x >= 0.001 else "<0.001",
-        #     "hazard_ratio": lambda x: f"{x:.2f}",
-        # }
-    )
 )
-
-print("Forest plot created successfully!")
 ```
 
 ## Display Interactive Forest Plot
