@@ -240,7 +240,7 @@ class ReactableExporter:
             "width": "100%",
             "wrap": False,
             "theme": Theme(
-                cell_padding="2px 8px",  # Reduced vertical padding for tighter rows
+                cell_padding="0px 8px",
                 style={"fontSize": f"{config.font_size}px"}
             ),
         }

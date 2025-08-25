@@ -131,11 +131,15 @@ class SparklinePanel(Panel):
         color_errorbar_list = colors_list.copy()
         
         js_x, js_x_lower, js_x_upper = self._prepare_x_values(type, variables, lower_cols, upper_cols)
-        js_y = ", ".join([str(i * 0.15) for i in range(len(variables))])
+        
+        # Calculate y-spacing using the general function
+        y_positions = self._calculate_y_spacing(len(variables))
+        js_y = ", ".join([str(y) for y in y_positions])
+        js_y_range = "0, 1.0"  # Always use consistent range
+        
         js_text = ", ".join([f'"{label}"' for label in labels])
         
         js_x_range = f"{self.xlim[0]}, {self.xlim[1]}" if self.xlim else "null, null"
-        js_y_range = "-0.5, 1.0"
         
         js_vline = self._prepare_reference_line(type)
         
@@ -152,7 +156,7 @@ class SparklinePanel(Panel):
         js_xlab = self.x_label or "" if self.show_x_axis and type != "cell" else ""
         
         js_footer_text = self.footer if type == "footer" and self.footer else ""
-        js_footer_y_position = self._get_footer_position(type)
+        js_footer_y_position = "-0.5"  # Fixed position for all footer text
         
         js_show_xaxis = "true" if (self.show_x_axis and type != "cell") else "false"
         js_height = str(height)
@@ -334,7 +338,7 @@ class SparklinePanel(Panel):
             else:
                 return 35  # Minimal footer height
         else:
-            return 30  # Reduced cell height to minimize row spacing
+            return 25  # Minimal cell height for compact row spacing
     
     def _get_legend_position(self, type: str) -> float:
         """Get legend position based on context."""
@@ -349,20 +353,36 @@ class SparklinePanel(Panel):
         else:
             return 0.5  # Default position (not used in footer)
     
-    def _get_footer_position(self, type: str) -> str:
-        """Get footer text position based on context."""
-        if type != "footer" or not self.footer:
-            return "-0.5"
-            
-        FOOTER_POSITION_CONFIG = {
-            (True, True): "-0.5",
-            (True, False): "-0.5",
-            (False, True): "-0.5",
-            (False, False): "-0.5",
-        }
+    def _calculate_y_spacing(self, n_variables: int, padding: float = 0.35) -> list[float]:
+        """Calculate y-positions for variables with optimal spacing.
         
-        key = (self.show_x_axis, self.show_legend)
-        return FOOTER_POSITION_CONFIG.get(key, "-0.5")
+        General formula that works for any number of variables.
+        
+        Args:
+            n_variables: Number of variables to display
+            padding: Space to leave at top and bottom (0-0.5).
+                    Smaller padding = traces use more vertical space
+            
+        Returns:
+            List of y-positions for each variable
+        """
+        if n_variables == 0:
+            return []
+        
+        if n_variables == 1:
+            # Single variable is always centered
+            return [0.5]
+        
+        # General formula for multiple variables
+        y_min = padding
+        y_max = 1 - padding
+        
+        # Distribute variables evenly within the allocated space
+        spacing = (y_max - y_min) / (n_variables - 1)
+        y_positions = [y_min + i * spacing for i in range(n_variables)]
+        
+        return y_positions
+    
     
     def _prepare_x_values(self, type: str, variables: list, lower_cols: list, upper_cols: list) -> tuple:
         """Prepare x-axis values for JavaScript."""
