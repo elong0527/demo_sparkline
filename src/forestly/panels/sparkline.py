@@ -168,9 +168,7 @@ class SparklinePanel(Panel):
             "point+line": "markers+lines"
         }
         js_mode = legend_type_map.get(self.legend_type, "markers")
-        
-        data_traces = self._create_data_traces(variables, lower_cols, upper_cols, type, js_mode)
-        data_trace = ",\n      ".join(data_traces)
+        js_type = type  # Pass the type to JavaScript for conditional logic
         
         # Font size for legend and labels
         js_font_size = str(font_size)
@@ -199,7 +197,8 @@ class SparklinePanel(Panel):
             js_legend_label=js_legend_label,
             js_footer_text=js_footer_text,
             js_footer_y_position=js_footer_y_position,
-            data_trace=data_trace
+            js_mode=js_mode,
+            js_type=js_type
         )
 
     def prepare(self, data: pl.DataFrame) -> None:
@@ -410,44 +409,6 @@ class SparklinePanel(Panel):
         else:
             return str(self.reference_line)
     
-    def _create_data_traces(self, variables: list, lower_cols: list, upper_cols: list, type: str, js_mode: str) -> list:
-        """Create data trace configurations for Plotly."""
-        data_traces = []
-        
-        for i in range(len(variables)):
-            error_x = ""
-            if lower_cols and upper_cols and type == "cell":
-                error_x = f""",
-          error_x: {{
-            type: "data",
-            symmetric: false,
-            array: [x_upper[{i}] - x[{i}]],
-            arrayminus: [x[{i}] - x_lower[{i}]],
-            color: color_errorbar[{i}],
-            thickness: 1.5,
-            width: 3
-          }}"""
-            
-            trace = f"""{{
-          x: [x[{i}]],
-          y: [y[{i}]],
-          text: text[{i}],
-          hovertemplate: text[{i}] + ": %{{x}}<extra></extra>",
-          mode: "{js_mode}",
-          type: "scatter",
-          name: legend_label[{i}],
-          showlegend: showlegend,
-          marker: {{
-            size: 8,
-            color: color[{i}]
-          }},
-          line: {{
-            color: color[{i}]
-          }}{error_x}
-        }}"""
-            data_traces.append(trace)
-        
-        return data_traces
 
     def validate_confidence_intervals(self, data: pl.DataFrame) -> None:
         """Validate that confidence intervals contain point estimates.

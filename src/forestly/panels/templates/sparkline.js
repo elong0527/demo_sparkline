@@ -39,11 +39,50 @@ function(cell, state) {
   const legend_position = ${js_legend_position};
   const legend_label = [${js_legend_label}];
   const font_size = ${js_font_size};
+  
+  // Chart mode and cell type
+  const mode = "${js_mode}";
+  const cellType = "${js_type}";
+  
+  // Create data traces dynamically
+  const data = [];
+  for (let i = 0; i < x.length; i++) {
+    const trace = {
+      x: [x[i]],
+      y: [y[i]],
+      text: text[i],
+      hovertemplate: text[i] + ": %{x}<extra></extra>",
+      mode: mode,
+      type: "scatter",
+      name: legend_label[i],
+      showlegend: showlegend,
+      marker: {
+        size: 8,
+        color: color[i]
+      },
+      line: {
+        color: color[i]
+      }
+    };
+    
+    // Add error bars only for cell type with bounds
+    if (cellType === "cell" && x_lower[i] !== null && x_upper[i] !== null) {
+      trace.error_x = {
+        type: "data",
+        symmetric: false,
+        array: [x_upper[i] - x[i]],
+        arrayminus: [x[i] - x_lower[i]],
+        color: color_errorbar[i],
+        thickness: 1.5,
+        width: 3
+      };
+    }
+    
+    data.push(trace);
+  }
 
   return React.createElement(Plot, {
-    data: [
-      ${data_trace}
-    ],
+    data: data,
     layout: {
       height: height,
       width: width,
