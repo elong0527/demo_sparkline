@@ -97,6 +97,18 @@ class ForestPlot(BaseModel):
             Reactable object
         """
         from forestly.exporters.reactable import ReactableExporter
+        from IPython.display import display, HTML
+        from pathlib import Path
+        
+        # Load JavaScript dependencies for sparkline visualization from file
+        deps_file = Path(__file__).parent.parent / "panels" / "templates" / "plotly_deps.js"
+        with open(deps_file, "r") as f:
+            js_deps_content = f.read()
+        
+        js_deps = f"<script>\n{js_deps_content}\n</script>"
+        
+        # Display the JavaScript dependencies
+        display(HTML(js_deps))
 
         exporter = ReactableExporter()
         return exporter.export(self)
