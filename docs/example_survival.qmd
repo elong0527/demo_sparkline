@@ -1,5 +1,5 @@
 ---
-title: "Safety Forest Plot - Adverse Events Analysis"
+title: "Example: Adverse Events"
 format:
   html:
     code-fold: true
@@ -93,7 +93,6 @@ safety_forest = ForestPlot(
         TextPanel(
             variables="ae_term",
             title="Adverse Events",
-            width=100,
             align="left"  # Left align for text column
         ),
         
@@ -104,7 +103,6 @@ safety_forest = ForestPlot(
             labels=["Placebo", "Low Dose", "High Dose"],
             reference_line=0,
             width=400,
-            show_x_axis=True,
             show_legend=True
         ),
         
@@ -117,9 +115,7 @@ safety_forest = ForestPlot(
             title="Risk Difference (%) + 95% CI\nvs. Placebo",
             reference_line=0,
             width=300,
-            show_x_axis=True,
             x_label="Placebo <-- Favor --> Treatment",
-            show_legend=False
         ),
         
         # Placebo counts and percentages
@@ -127,7 +123,6 @@ safety_forest = ForestPlot(
             variables=["placebo_n", "placebo_pct"],
             title="Placebo\n(N=86)",
             labels=["n", "(%)"],
-            width=60
         ),
         
         # Low dose counts and percentages
@@ -135,15 +130,12 @@ safety_forest = ForestPlot(
             variables=["low_dose_n", "low_dose_pct"],
             title="Low Dose\n(N=84)",
             labels=["n", "(%)"],
-            width=60
         ),
         
         # High dose counts and percentages
         TextPanel(
             variables=["high_dose_n", "high_dose_pct"],
             title="High Dose\n(N=84)",
-            labels=["n", "(%)"],
-            width=60
         )
     ],
     config=Config(
@@ -151,8 +143,6 @@ safety_forest = ForestPlot(
         colors=colors
     )
 )
-
-print("Safety forest plot created successfully!")
 ```
 
 ## Display Interactive Safety Forest Plot
@@ -182,3 +172,4 @@ The safety forest plot reveals:
 # Export to different formats
 safety_forest.to_rtf("safety_forest_plot.rtf")  # For regulatory submissions
 safety_forest.to_dataframe()  # Get processed data
+```

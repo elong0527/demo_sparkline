@@ -1,5 +1,5 @@
 ---
-title: "Basic Forest Plot Example"
+title: "Example: Survival Subgroup"
 format:
   html:
     code-fold: true
@@ -63,7 +63,6 @@ forest = ForestPlot(
             variables="subgroup",
             group_by="category", 
             title="Subgroup",
-            width=100
         ),
         
         # Treatment arm events
@@ -71,7 +70,6 @@ forest = ForestPlot(
             variables=["treatment_events", "treatment_total"],
             title="Treatment",
             labels=["n", "N"],
-            width=60
         ),
         
         # Control arm events
@@ -79,7 +77,6 @@ forest = ForestPlot(
             variables=["control_events", "control_total"],
             title="Control",
             labels=["n", "N"],
-            width=60
         ),
         
         # Forest plot sparkline
@@ -91,15 +88,13 @@ forest = ForestPlot(
             reference_line=1.0,
             xlim=(0.4, 1.2),
             width=200,
-            show_x_axis=True,
-            show_legend=True
+            show_legend=False
         ),
         
         # P-values
         TextPanel(
             variables="p_value",
             title="P-value",
-            width=60
         )
     ],
 )
