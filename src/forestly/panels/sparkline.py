@@ -18,7 +18,7 @@ class SparklinePanel(Panel):
     reference_line_color: str | None = Field(default=None, description="Color for reference line")
     xlim: tuple[float, float] | None = Field(default=None, description="X-axis limits")
     js_function: str | None = Field(default=None, description="Custom JavaScript function for rendering")
-    show_x_axis: bool = Field(default=False, description="Whether to show x-axis with labels")
+    show_x_axis: bool = Field(default=True, description="Whether to show x-axis with labels")
     x_label: str | None = Field(default=None, description="X-axis label text")
     show_legend: bool = Field(default=False, description="Whether to show legend")
     legend_title: str | None = Field(default=None, description="Title for the legend")
