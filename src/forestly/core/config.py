@@ -11,6 +11,7 @@ class Config(BaseModel):
     figure_width: float | None = None
     figure_height: float | None = None
     sparkline_height: int = Field(default=30, gt=0)
+    font_size: int = Field(default=12, gt=0)  # Font size for text and legends
 
     colors: list[str] | None = None
     reference_line_color: str = "#00000050"

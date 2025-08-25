@@ -30,7 +30,7 @@ class ReactableExporter:
         columns, column_groups = self._create_columns_and_groups(forest_plot.panels, forest_plot.config, forest_plot.get_used_columns())
         
         # Build and return Reactable
-        return self._build_reactable(data, columns, column_groups, group_by)
+        return self._build_reactable(data, columns, column_groups, group_by, forest_plot.config)
 
     def _create_columns_and_groups(self, panels: list, config, used_columns: list[str]) -> tuple[list[Column], list[ColGroup]]:
         """Create Reactable columns and column groups from panels.
@@ -97,6 +97,7 @@ class ReactableExporter:
                         "id": group_col,
                         "name": group_col.replace("_", " ").title(),
                         "aggregate": "unique",
+                        "v_align": "center"
                     }
                     if panel.width:
                         col_args["width"] = 150
@@ -119,10 +120,14 @@ class ReactableExporter:
                 col_args = {
                     "id": var,
                     "name": display_name,
+                    "v_align": "center"
                 }
 
                 if width:
                     col_args["width"] = width
+                
+                # Use panel's alignment setting
+                col_args["align"] = panel.align
 
                 # Apply formatter if specified
                 if config.formatters and var in config.formatters:
@@ -163,8 +168,9 @@ class ReactableExporter:
             if not panel.js_function:
                 # Use panel's generate_javascript method with type="cell" for main sparkline
                 panel.js_function = panel.generate_javascript(
-                    colors=config.colors if hasattr(config, 'colors') else None,
-                    type="cell"
+                    colors=config.colors,
+                    type="cell",
+                    font_size=config.font_size
                 )
             js_func = panel.js_function
             
@@ -172,7 +178,8 @@ class ReactableExporter:
             col_args = {
                 "id": variables[0],
                 "name": panel.title if panel.title else variables[0],
-                "cell": JS(js_func),  # Use JS wrapper for JavaScript code
+                "cell": JS(js_func),
+                "v_align": "center" 
             }
             
             if panel.width:
@@ -182,8 +189,9 @@ class ReactableExporter:
             if panel.show_x_axis or panel.show_legend:
                 # Generate footer JavaScript with x-axis and/or legend
                 footer_js = panel.generate_javascript(
-                    colors=config.colors if hasattr(config, 'colors') else None,
-                    type="footer"
+                    colors=config.colors,
+                    type="footer",
+                    font_size=config.font_size
                 )
                 if footer_js:
                     # If there's also a custom footer text, we'll need to combine them
@@ -205,7 +213,7 @@ class ReactableExporter:
         return columns
 
     def _build_reactable(self, data: pl.DataFrame, columns: list[Column], 
-                        column_groups: list[ColGroup], group_by: list[str]) -> Reactable:
+                        column_groups: list[ColGroup], group_by: list[str], config) -> Reactable:
         """Build Reactable with configuration.
 
         Args:
@@ -232,7 +240,8 @@ class ReactableExporter:
             "width": "100%",
             "wrap": False,
             "theme": Theme(
-                cell_padding="0px 8px"
+                cell_padding="2px 8px",  # Reduced vertical padding for tighter rows
+                style={"fontSize": f"{config.font_size}px"}
             ),
         }
         

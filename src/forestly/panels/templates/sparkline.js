@@ -38,6 +38,7 @@ function(cell, state) {
   const legend_title = "${js_legend_title}";
   const legend_position = ${js_legend_position};
   const legend_label = [${js_legend_label}];
+  const font_size = ${js_font_size};
 
   return React.createElement(Plot, {
     data: [
@@ -58,7 +59,7 @@ function(cell, state) {
         title: {
           text: x_label,
           standoff: 5,
-          font: { size: 11 }
+          font: { size: font_size }
         },
         range: x_range,
         showline: ${js_show_xaxis},
@@ -92,11 +93,17 @@ function(cell, state) {
       showlegend: showlegend,
       hovermode: "closest",
       legend: {
-        title: { text: legend_title },
+        title: { 
+          text: legend_title,
+          font: { size: font_size }
+        },
+        font: { size: font_size },
         orientation: "h",
         xanchor: "center",
+        yanchor: "top",  // Anchor from top to align with x-label baseline
         x: 0.5,
-        y: legend_position
+        y: legend_position,
+        yref: "paper"  // Use paper coordinates for consistent positioning
       }
     },
     config: {

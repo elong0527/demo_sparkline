@@ -93,7 +93,8 @@ safety_forest = ForestPlot(
         TextPanel(
             variables="ae_term",
             title="Adverse Events",
-            width=300
+            width=300,
+            align="left"  # Left align for text column
         ),
         
         # AE Proportion panel showing all three groups

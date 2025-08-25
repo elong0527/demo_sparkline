@@ -10,6 +10,7 @@ class TextPanel(Panel):
     """Display one or more text/numeric columns."""
 
     group_by: str | list[str] | None = None
+    align: str = "center"  # Alignment for columns: "left", "center", or "right"
 
     def render(self, data: pl.DataFrame) -> dict:
         """Render panel data for display.

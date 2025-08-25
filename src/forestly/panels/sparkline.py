@@ -103,12 +103,13 @@ class SparklinePanel(Panel):
 
         return required
 
-    def generate_javascript(self, colors: list[str] | None = None, type: str = "cell") -> str:
+    def generate_javascript(self, colors: list[str] | None = None, type: str = "cell", font_size: int = 12) -> str:
         """Generate JavaScript code for sparkline rendering using the template.
 
         Args:
             colors: Optional list of colors for each trace
             type: Type of reactable component ("cell", "footer", "header")
+            font_size: Font size for text and legends
 
         Returns:
             JavaScript code as string
@@ -167,6 +168,9 @@ class SparklinePanel(Panel):
         data_traces = self._create_data_traces(variables, lower_cols, upper_cols, type, js_mode)
         data_trace = ",\n      ".join(data_traces)
         
+        # Font size for legend and labels
+        js_font_size = str(font_size)
+        
         return template.safe_substitute(
             js_x=js_x,
             js_y=js_y,
@@ -186,6 +190,7 @@ class SparklinePanel(Panel):
             js_show_xaxis=js_show_xaxis,
             js_showlegend=js_showlegend,
             js_legend_title=js_legend_title,
+            js_font_size=js_font_size,
             js_legend_position=js_legend_position,
             js_legend_label=js_legend_label,
             js_footer_text=js_footer_text,
@@ -299,9 +304,16 @@ class SparklinePanel(Panel):
         if self.margin is not None:
             return self.margin
             
-        # Simplified margin configuration
+        # Margin configuration [bottom, left, top, right, pad]
         if type == "footer":
-            return [30, 10, 0, 10, 0]
+            # Use consistent bottom margin for all footers with x-axis
+            # This ensures x-axes align between panels
+            if self.show_x_axis:
+                return [40, 10, 0, 10, 0]  # Increased to provide space for both x-axis and potential legend
+            elif self.show_legend:
+                return [25, 10, 0, 10, 0]  # Legend-only margin
+            else:
+                return [10, 10, 0, 10, 0]  # Minimal margin
         else:
             # Cell has no extra margins
             return [0, 10, 0, 10, 0]
@@ -312,25 +324,35 @@ class SparklinePanel(Panel):
             return self.height
             
         if type == "footer":
-            return 35  # Fixed footer height
+            # Use consistent height for all footers with x-axis to ensure alignment
+            if self.show_x_axis and self.show_legend:
+                return 65  # Slightly increased for better spacing
+            elif self.show_x_axis:
+                return 65  # Same height even without legend to maintain alignment
+            elif self.show_legend:
+                return 45  # Legend only
+            else:
+                return 35  # Minimal footer height
         else:
-            return 45  # Fixed cell height
+            return 30  # Reduced cell height to minimize row spacing
     
     def _get_legend_position(self, type: str) -> float:
         """Get legend position based on context."""
         if self.legend_position is not None:
             return self.legend_position
             
-        # Simplified legend position
+        # Legend position in paper coordinates (0=bottom, 1=top of figure)
         if type == "footer" and self.show_x_axis and self.show_legend:
-            return -1.5  # Below x-axis when both are shown
+            return -0.45  # Adjusted to align exactly with x-label text baseline
+        elif type == "footer" and self.show_legend:
+            return -0.15  # Legend only position (paper coords)
         else:
-            return -1.5  # Default position
+            return 0.5  # Default position (not used in footer)
     
     def _get_footer_position(self, type: str) -> str:
         """Get footer text position based on context."""
         if type != "footer" or not self.footer:
-            return "-0.4"
+            return "-0.5"
             
         FOOTER_POSITION_CONFIG = {
             (True, True): "-0.5",
@@ -340,7 +362,7 @@ class SparklinePanel(Panel):
         }
         
         key = (self.show_x_axis, self.show_legend)
-        return FOOTER_POSITION_CONFIG.get(key, "-0.4")
+        return FOOTER_POSITION_CONFIG.get(key, "-0.5")
     
     def _prepare_x_values(self, type: str, variables: list, lower_cols: list, upper_cols: list) -> tuple:
         """Prepare x-axis values for JavaScript."""
