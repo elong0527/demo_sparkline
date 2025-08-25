@@ -6,7 +6,6 @@ from reactable import Column, Reactable, JS, Theme, ColGroup
 from forestly.core.forest_plot import ForestPlot
 from forestly.panels.sparkline import SparklinePanel
 from forestly.panels.text import TextPanel
-from forestly.utils.common import normalize_to_list, normalize_width_to_list
 
 
 class ReactableExporter:
@@ -89,9 +88,8 @@ class ReactableExporter:
 
         # Handle group_by columns first
         if panel.group_by:
-            group_cols = normalize_to_list(panel.group_by)
-            for group_col in group_cols:
-                variables_list = normalize_to_list(panel.variables) if panel.variables else []
+            for group_col in panel.group_by:
+                variables_list = panel.variables if panel.variables else []
                 if group_col not in variables_list:
                     col_args = {
                         "id": group_col,
@@ -105,9 +103,9 @@ class ReactableExporter:
 
         # Handle main variables
         if panel.variables:
-            variables = normalize_to_list(panel.variables)
-            labels = normalize_to_list(panel.labels) if panel.labels else variables
-            widths = normalize_width_to_list(panel.width, len(variables))
+            variables = panel.variables
+            labels = panel.labels if panel.labels else variables
+            widths = panel.get_width_list(len(variables))
 
             # Create columns for each variable
             for var, label, width in zip(variables, labels, widths):
@@ -162,7 +160,7 @@ class ReactableExporter:
         columns = []
 
         if panel.variables:
-            variables = normalize_to_list(panel.variables)
+            variables = panel.variables
             
             # Generate JavaScript if not provided
             if not panel.js_function:

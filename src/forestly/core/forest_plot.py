@@ -5,7 +5,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from forestly.core.config import Config
 from forestly.panels.base import Panel
-from forestly.utils.common import normalize_to_list
 
 
 class ForestPlot(BaseModel):
@@ -173,25 +172,25 @@ class ForestPlot(BaseModel):
             if isinstance(panel, TextPanel):
                 # Add group_by columns first
                 if panel.group_by:
-                    panel_columns.extend(normalize_to_list(panel.group_by))
+                    panel_columns.extend(panel.group_by)
                 
                 # Then add variable columns
                 if panel.variables:
-                    panel_columns.extend(normalize_to_list(panel.variables))
+                    panel_columns.extend(panel.variables)
                         
             elif isinstance(panel, SparklinePanel):
                 # For SparklinePanel, we need all the columns it uses
                 # Add main variable columns
                 if panel.variables:
-                    panel_columns.extend(normalize_to_list(panel.variables))
+                    panel_columns.extend(panel.variables)
                 
                 # Add lower bound columns
                 if panel.lower:
-                    panel_columns.extend(normalize_to_list(panel.lower))
+                    panel_columns.extend(panel.lower)
                 
                 # Add upper bound columns
                 if panel.upper:
-                    panel_columns.extend(normalize_to_list(panel.upper))
+                    panel_columns.extend(panel.upper)
                 
                 # Add reference line column if it's a column name
                 if panel.reference_line and isinstance(panel.reference_line, str):
@@ -247,5 +246,5 @@ class ForestPlot(BaseModel):
         
         for panel in self.panels:
             if isinstance(panel, TextPanel) and panel.group_by:
-                return normalize_to_list(panel.group_by)
+                return panel.group_by
         return []

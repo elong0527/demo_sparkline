@@ -4,28 +4,88 @@ from pathlib import Path
 from string import Template
 
 import polars as pl
+from pydantic import Field, field_validator, model_validator
 
 from forestly.panels.base import Panel
-from forestly.utils.common import normalize_to_list, safe_get_color
 
 
 class SparklinePanel(Panel):
     """Display point estimates with error bars."""
 
-    lower: str | list[str] | None = None
-    upper: str | list[str] | None = None
-    reference_line: float | str | None = None
-    reference_line_color: str | None = None
-    xlim: tuple[float, float] | None = None
-    js_function: str | None = None  # Custom JavaScript function for rendering
-    show_x_axis: bool = False  # Whether to show x-axis with labels
-    x_label: str | None = None  # X-axis label text
-    show_legend: bool = False  # Whether to show legend
-    legend_title: str | None = None  # Title for the legend
-    legend_position: float | None = None  # Vertical position of legend (0-1)
-    legend_type: str = "point"  # Type of legend: "point", "line", or "point+line"
-    margin: list[float] | None = None  # Margin settings [bottom, left, top, right, pad]
-    height: int | None = None  # Custom height for sparkline
+    lower: list[str] = Field(default_factory=list, description="Lower confidence bound columns")
+    upper: list[str] = Field(default_factory=list, description="Upper confidence bound columns")
+    reference_line: float | None = Field(default=None, description="Reference line value")
+    reference_line_color: str | None = Field(default=None, description="Color for reference line")
+    xlim: tuple[float, float] | None = Field(default=None, description="X-axis limits")
+    js_function: str | None = Field(default=None, description="Custom JavaScript function for rendering")
+    show_x_axis: bool = Field(default=False, description="Whether to show x-axis with labels")
+    x_label: str | None = Field(default=None, description="X-axis label text")
+    show_legend: bool = Field(default=False, description="Whether to show legend")
+    legend_title: str | None = Field(default=None, description="Title for the legend")
+    legend_position: float | None = Field(default=None, description="Vertical position of legend (0-1)")
+    legend_type: str = Field(default="point", description="Type of legend: 'point', 'line', or 'point+line'")
+    margin: list[float] | None = Field(default=None, description="Margin settings [bottom, left, top, right, pad]")
+    height: int | None = Field(default=None, description="Custom height for sparkline")
+
+    @field_validator('labels', 'lower', 'upper', 'variables', mode='before')
+    @classmethod
+    def normalize_to_list(cls, v: str | list[str]) -> list[str]:
+        """Normalize all string/list fields to list format."""
+        if isinstance(v, str):
+            return [v]
+        return v if v else []
+    
+    @field_validator('legend_type')
+    @classmethod
+    def validate_legend_type(cls, v: str) -> str:
+        """Validate legend type is one of allowed values."""
+        allowed = ["point", "line", "point+line"]
+        if v not in allowed:
+            raise ValueError(f"legend_type must be one of {allowed}, got '{v}'")
+        return v
+    
+    @field_validator('margin')
+    @classmethod
+    def validate_margin(cls, v: list[float] | None) -> list[float] | None:
+        """Validate margin has exactly 5 values if provided."""
+        if v is not None and len(v) != 5:
+            raise ValueError(f"margin must have exactly 5 values [bottom, left, top, right, pad], got {len(v)}")
+        return v
+    
+    @field_validator('legend_position')
+    @classmethod
+    def validate_legend_position(cls, v: float | None) -> float | None:
+        """Validate legend position is between 0 and 1."""
+        if v is not None and not (0 <= v <= 1):
+            raise ValueError(f"legend_position must be between 0 and 1, got {v}")
+        return v
+    
+    @field_validator('xlim')
+    @classmethod
+    def validate_xlim(cls, v: tuple[float, float] | None) -> tuple[float, float] | None:
+        """Validate xlim is a tuple of two floats with min < max."""
+        if v is not None:
+            if len(v) != 2:
+                raise ValueError(f"xlim must be a tuple of two floats, got {len(v)} values")
+            if v[0] >= v[1]:
+                raise ValueError(f"xlim[0] must be less than xlim[1], got {v[0]} >= {v[1]}")
+        return v
+    
+    @model_validator(mode='after')
+    def validate_confidence_bounds(self) -> 'SparklinePanel':
+        """Validate that lower and upper bounds are provided together."""
+        # Check if exactly one is provided (not both empty, not just one)
+        if bool(self.lower) != bool(self.upper):
+            raise ValueError("Both lower and upper bounds must be provided together or both must be empty")
+        
+        if self.lower and self.upper:
+            if len(self.lower) != len(self.upper):
+                raise ValueError(f"lower and upper must have the same length, got {len(self.lower)} and {len(self.upper)}")
+            
+            if self.variables and len(self.lower) != len(self.variables):
+                raise ValueError(f"lower/upper bounds must match number of variables, got {len(self.lower)} bounds for {len(self.variables)} variables")
+        
+        return self
 
     def render(self, data: pl.DataFrame) -> dict:
         """Render panel data for display.
@@ -40,24 +100,18 @@ class SparklinePanel(Panel):
 
         # Handle variables (point estimates)
         if self.variables:
-            estimates = normalize_to_list(self.variables)
-            result["estimates"] = estimates
+            result["estimates"] = self.variables
 
         # Handle confidence intervals
         if self.lower:
-            result["lower_bounds"] = normalize_to_list(self.lower)
+            result["lower_bounds"] = self.lower
 
         if self.upper:
-            result["upper_bounds"] = normalize_to_list(self.upper)
+            result["upper_bounds"] = self.upper
 
         # Handle reference line
         if self.reference_line is not None:
-            if isinstance(self.reference_line, str):
-                # Column name for dynamic reference line
-                result["reference_line_column"] = self.reference_line
-            else:
-                # Fixed value for reference line
-                result["reference_line_value"] = self.reference_line
+            result["reference_line_value"] = self.reference_line
 
         # Visual configuration
         if self.reference_line_color:
@@ -67,7 +121,7 @@ class SparklinePanel(Panel):
             result["xlim"] = self.xlim
 
         if self.labels:
-            result["labels"] = normalize_to_list(self.labels)
+            result["labels"] = self.labels
 
         if self.width:
             result["width"] = self.width
@@ -87,19 +141,15 @@ class SparklinePanel(Panel):
 
         # Add estimate columns
         if self.variables:
-            required.update(normalize_to_list(self.variables))
+            required.update(self.variables)
 
         # Add lower bound columns
         if self.lower:
-            required.update(normalize_to_list(self.lower))
+            required.update(self.lower)
 
         # Add upper bound columns
         if self.upper:
-            required.update(normalize_to_list(self.upper))
-
-        # Add reference line column if it's a column name
-        if isinstance(self.reference_line, str):
-            required.add(self.reference_line)
+            required.update(self.upper)
 
         return required
 
@@ -118,16 +168,18 @@ class SparklinePanel(Panel):
         with open(template_path, "r") as f:
             template = Template(f.read())
         
-        variables = normalize_to_list(self.variables) if self.variables else []
-        lower_cols = normalize_to_list(self.lower) if self.lower else []
-        upper_cols = normalize_to_list(self.upper) if self.upper else []
-        labels = normalize_to_list(self.labels) if self.labels else variables
+        variables = self.variables
+        lower_cols = self.lower
+        upper_cols = self.upper
+        labels = self.labels if self.labels else variables
         
         margin = self._get_margin(type)
         height = self._get_height(type, len(variables))
         legend_position = self._get_legend_position(type)
         
-        colors_list = [f'"{safe_get_color(colors, i)}"' for i in range(len(variables))]
+        # Get colors for each variable using Panel's color method
+        color_values = self.get_color_list(colors, len(variables))
+        colors_list = [f'"{color}"' for color in color_values]
         color_errorbar_list = colors_list.copy()
         
         js_x, js_x_lower, js_x_upper = self._prepare_x_values(type, variables, lower_cols, upper_cols)
@@ -221,8 +273,6 @@ class SparklinePanel(Panel):
         Returns:
             Tuple of (min, max) for shared x-axis limits
         """
-        from forestly.utils.common import normalize_to_list
-        
         min_vals = []
         max_vals = []
         reference_lines = []
@@ -241,15 +291,15 @@ class SparklinePanel(Panel):
             
             # Add main variables
             if panel.variables:
-                numeric_cols.extend(normalize_to_list(panel.variables))
+                numeric_cols.extend(panel.variables) 
             
             # Add lower bounds
             if panel.lower:
-                numeric_cols.extend(normalize_to_list(panel.lower))
+                numeric_cols.extend(panel.lower)
             
             # Add upper bounds
             if panel.upper:
-                numeric_cols.extend(normalize_to_list(panel.upper))
+                numeric_cols.extend(panel.upper)
             
             # Calculate min and max across all columns
             for col in numeric_cols:
@@ -403,11 +453,7 @@ class SparklinePanel(Panel):
         """Prepare reference line value for JavaScript."""
         if self.reference_line is None:
             return "null"
-        
-        if isinstance(self.reference_line, str):
-            return f'cell.row["{self.reference_line}"]' if type == "cell" else "null"
-        else:
-            return str(self.reference_line)
+        return str(self.reference_line)
     
 
     def validate_confidence_intervals(self, data: pl.DataFrame) -> None:
@@ -422,11 +468,7 @@ class SparklinePanel(Panel):
         if not (self.variables and self.lower and self.upper):
             return
 
-        estimates = normalize_to_list(self.variables)
-        lowers = normalize_to_list(self.lower)
-        uppers = normalize_to_list(self.upper)
-
-        for est, low, up in zip(estimates, lowers, uppers):
+        for est, low, up in zip(self.variables, self.lower, self.upper):
             if est in data.columns and low in data.columns and up in data.columns:
                 # Check that lower <= estimate <= upper for all rows
                 invalid = data.filter(
