@@ -177,7 +177,8 @@ class ReactableExporter:
                 "id": variables[0],
                 "name": panel.title if panel.title else variables[0],
                 "cell": JS(js_func),
-                "v_align": "center" 
+                "v_align": "center",
+                "align": "center"
             }
             
             if panel.width:
