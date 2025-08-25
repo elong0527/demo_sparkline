@@ -91,7 +91,7 @@
         // Step 3: Load Plotly
         if (typeof window.Plotly === 'undefined') {
             console.log('Loading Plotly...');
-            loadScript('https://cdn.plot.ly/plotly-2.18.2.min.js', function() {
+            loadScript('https://unpkg.com/plotly.js@2.18.2/dist/plotly.min.js', function() {
                 console.log('Plotly loaded');
                 setupPlotlyComponent();
             });
