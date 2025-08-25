@@ -1,5 +1,5 @@
 ---
-title: "Example: Survival Subgroup"
+title: "Example: Adverse Events"
 format:
   html:
     code-fold: true
@@ -8,7 +8,7 @@ format:
 
 ## Introduction
 
-This example demonstrates how to create a basic forest plot using the `forestly` package for clinical trial subgroup analysis.
+This example demonstrates creating a safety forest plot comparing adverse events between treatment and placebo, matching clinical trial reporting standards.
 
 ## Setup
 
@@ -24,99 +24,144 @@ from forestly import ForestPlot, TextPanel, SparklinePanel, Config
 embed_css()
 ```
 
-## Create Clinical Trial Data
+## Create Safety Data
 
 ```{python}
-#| label: create-data
+#| label: create-safety-data
 
-# Create example efficacy data for subgroup analysis
-efficacy_data = pl.DataFrame({
-    "subgroup": ["Overall", "Age <65", "Age >=65", "Male", "Female", 
-                 "ECOG 0", "ECOG 1", "Prior Therapy", "No Prior Therapy"],
-    "category": ["Overall", "Age", "Age", "Sex", "Sex", 
-                 "Performance", "Performance", "History", "History"],
-    "hazard_ratio": [0.72, 0.68, 0.81, 0.69, 0.75, 0.65, 0.78, 0.73, 0.71],
-    "hr_ci_lower": [0.58, 0.51, 0.62, 0.52, 0.57, 0.48, 0.60, 0.55, 0.54],
-    "hr_ci_upper": [0.89, 0.91, 1.05, 0.92, 0.98, 0.87, 1.01, 0.96, 0.93],
-    "p_value": [0.003, 0.012, 0.089, 0.015, 0.042, 0.004, 0.061, 0.025, 0.011],
-    "treatment_events": [45, 24, 21, 23, 22, 18, 27, 30, 15],
-    "treatment_total": [150, 78, 72, 75, 75, 60, 90, 100, 50],
-    "control_events": [62, 35, 27, 33, 29, 28, 34, 41, 21],
-    "control_total": [148, 76, 72, 74, 74, 59, 89, 99, 49],
+# Create safety data with three treatment groups
+safety_data = pl.DataFrame({
+    # Adverse event terms
+    "ae_term": [
+        "Application site pruritus",
+        "Pruritus", 
+        "Application site erythema",
+        "Rash",
+        "Erythema",
+        "Dizziness",
+        "Application site irritation",
+        "Sinus bradycardia",
+        "Blister",
+        "Application site dermatitis"
+    ],
+    
+    # Placebo (N=86)
+    "placebo_n": [6, 8, 3, 5, 9, 2, 3, 2, 0, 5],
+    "placebo_pct": [7.0, 9.3, 3.5, 5.8, 10.5, 2.3, 3.5, 2.3, 0.0, 5.8],
+    
+    # Low dose treatment (N=84)
+    "low_dose_n": [22, 23, 12, 13, 15, 8, 9, 7, 5, 9],
+    "low_dose_pct": [26.2, 27.4, 14.3, 15.5, 17.9, 9.5, 10.7, 8.3, 6.0, 10.7],
+    
+    # High dose treatment (N=84)
+    "high_dose_n": [22, 26, 15, 11, 14, 12, 9, 8, 1, 7],
+    "high_dose_pct": [26.2, 31.0, 17.9, 13.1, 16.7, 14.3, 10.7, 9.5, 1.2, 8.3],
+    
+    # AE proportions for sparkline (all three groups)
+    "ae_prop_placebo": [7.0, 9.3, 3.5, 5.8, 10.5, 2.3, 3.5, 2.3, 0.0, 5.8],
+    "ae_prop_low": [26.2, 27.4, 14.3, 15.5, 17.9, 9.5, 10.7, 8.3, 6.0, 10.7],
+    "ae_prop_high": [26.2, 31.0, 17.9, 13.1, 16.7, 14.3, 10.7, 9.5, 1.2, 8.3],
+    
+    # Risk difference vs placebo (Low dose)
+    "risk_diff_low": [19.2, 18.1, 10.8, 9.7, 7.4, 7.2, 7.2, 6.0, 6.0, 4.9],
+    "risk_diff_low_lower": [9.1, 7.7, 3.1, 1.5, -2.0, 0.5, -0.1, -0.1, 1.3, -2.7],
+    "risk_diff_low_upper": [29.3, 28.5, 18.5, 17.9, 16.8, 13.9, 14.5, 12.1, 10.7, 12.5],
+    
+    # Risk difference vs placebo (High dose)
+    "risk_diff_high": [19.2, 21.7, 14.3, 7.3, 6.2, 12.0, 7.2, 7.2, 1.2, 2.5],
+    "risk_diff_high_lower": [9.1, 11.0, 6.2, -0.8, -3.2, 4.3, -0.1, 0.1, -2.1, -4.7],
+    "risk_diff_high_upper": [29.3, 32.4, 22.4, 15.4, 15.6, 19.7, 14.5, 14.3, 4.5, 9.7],
 })
 
-# Display the data
-print(f"Data shape: {efficacy_data.shape}")
-efficacy_data.head()
+print(f"Safety data shape: {safety_data.shape}")
+safety_data.head()
 ```
 
-## Create Forest Plot
+## Create Safety Forest Plot
 
 ```{python}
-#| label: create-forest-plot
+#| label: create-safety-forest
 
-# Create the forest plot
-forest = ForestPlot(
-    data=efficacy_data,
+# Define colors for the plot
+colors = ["#8B4513", "#4682B4", "#2E7D32"]  # Brown for placebo, blue for low dose, green for high dose
+
+# Create safety forest plot with three treatment arms
+safety_forest = ForestPlot(
+    data=safety_data,
     panels=[
+        # Adverse Events column
         TextPanel(
-            variables="subgroup",
-            group_by="category", 
-            title="Subgroup",
+            variables="ae_term",
+            title="Adverse Events",
+            align="left"  # Left align for text column
         ),
         
-        # Treatment arm events
-        TextPanel(
-            variables=["treatment_events", "treatment_total"],
-            title="Treatment",
-            labels=["n", "N"],
-        ),
-        
-        # Control arm events
-        TextPanel(
-            variables=["control_events", "control_total"],
-            title="Control",
-            labels=["n", "N"],
-        ),
-        
-        # Forest plot sparkline
+        # AE Proportion panel showing all three groups
         SparklinePanel(
-            variables="hazard_ratio",
-            lower="hr_ci_lower",
-            upper="hr_ci_upper",
-            title="Hazard Ratio (95% CI)",
-            reference_line=1.0,
-            xlim=(0.4, 1.2),
-            width=200,
-            show_legend=False
+            variables=["ae_prop_placebo", "ae_prop_low", "ae_prop_high"],
+            title="AE Proportion (%)",
+            labels=["Placebo", "Low Dose", "High Dose"],
+            reference_line=0,
+            width=400,
+            show_legend=True
         ),
         
-        # P-values
+        # Risk Difference panel with confidence intervals for both doses vs Placebo
+        SparklinePanel(
+            variables=["risk_diff_low", "risk_diff_high"],
+            lower=["risk_diff_low_lower", "risk_diff_high_lower"],
+            upper=["risk_diff_low_upper", "risk_diff_high_upper"],
+            labels=["Low Dose", "High Dose"],
+            title="Risk Difference (%) + 95% CI\nvs. Placebo",
+            reference_line=0,
+            width=300,
+            x_label="Placebo <-- Favor --> Treatment",
+        ),
+        
+        # Placebo counts and percentages
         TextPanel(
-            variables="p_value",
-            title="P-value",
+            variables=["placebo_n", "placebo_pct"],
+            title="Placebo\n(N=86)",
+            labels=["n", "(%)"],
+        ),
+        
+        # Low dose counts and percentages
+        TextPanel(
+            variables=["low_dose_n", "low_dose_pct"],
+            title="Low Dose\n(N=84)",
+            labels=["n", "(%)"],
+        ),
+        
+        # High dose counts and percentages
+        TextPanel(
+            variables=["high_dose_n", "high_dose_pct"],
+            title="High Dose\n(N=84)",
         )
     ],
+    config=Config(
+        title="Treatment-Emergent Adverse Events",
+        colors=colors
+    )
 )
 ```
 
-## Display Interactive Forest Plot
+## Display Interactive Safety Forest Plot
 
 ```{python}
-#| label: display-forest-plot
+#| label: display-safety-forest
 
 # Generate and display the interactive Reactable
-forest.to_reactable()
+safety_forest.to_reactable()
 ```
 
-## Interpretation
+## Key Findings
 
-The forest plot shows:
+The safety forest plot reveals:
 
-- **Overall Effect**: The treatment shows a significant benefit with HR = 0.72 (95% CI: 0.58-0.89, p=0.003)
-- **Age Subgroups**: Younger patients (<65) show greater benefit than older patients
-- **Performance Status**: ECOG 0 patients show the strongest treatment effect
-- **Consistency**: Treatment effect is consistent across most subgroups (all HRs < 1.0)
+1. **Application Site Reactions**: Most common AEs are application-site related (pruritus, erythema, irritation)
+2. **Risk Differences**: All AEs show higher incidence in treatment group vs placebo
+3. **Statistical Significance**: Events where CI doesn't cross 0 indicate significant differences
+4. **Safety Profile**: Largest risk differences seen in pruritus and application site reactions
 
 ## Export Options
 
@@ -124,12 +169,7 @@ The forest plot shows:
 #| label: export-options
 #| eval: false
 
-# Export to RTF for regulatory submission
-forest.to_rtf("forest_plot_subgroup.rtf")
-
-# Export to static plot
-forest.to_plotnine().save("forest_plot_subgroup.png", dpi=300)
-
-# Export processed data
-forest.to_dataframe().write_csv("forest_plot_data.csv")
+# Export to different formats
+safety_forest.to_rtf("safety_forest_plot.rtf")  # For regulatory submissions
+safety_forest.to_dataframe()  # Get processed data
 ```
